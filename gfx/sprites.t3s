@@ -1,0 +1,5 @@
+--atlas -f rgba8888 -z auto
+Frog_Standing.png
+Frog_Resting.png
+Frog_Jumping.png
+Yellow_Car.png
