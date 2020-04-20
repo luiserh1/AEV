@@ -104,7 +104,8 @@ main.o: \
  /opt/devkitpro/libctru/include/c2d/sprite.h \
  /opt/devkitpro/libctru/include/c2d/text.h \
  /opt/devkitpro/libctru/include/c2d/font.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/sprites.h
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/sprites.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/colors.h
 
 /opt/devkitpro/libctru/include/citro2d.h:
 
@@ -315,3 +316,5 @@ main.o: \
 /opt/devkitpro/libctru/include/c2d/font.h:
 
 /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/sprites.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/colors.h:

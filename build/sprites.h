@@ -14,6 +14,12 @@
 #define sprites_Fly_idx 10
 #define sprites_Barrel_Empty_idx 11
 #define sprites_Barrel_Content_idx 12
-#define sprites_Bottom_Screen_Menu_idx 13
-#define sprites_Button_Pressed_idx 14
-#define sprites_Button_Not_Pressed_idx 15
+#define sprites_Button_Pressed_idx 13
+#define sprites_Button_Not_Pressed_idx 14
+#define sprites_Bottom_Screen_Menu_idx 15
+#define sprites_Cactus_Small_idx 16
+#define sprites_Cactus_Medium_idx 17
+#define sprites_Cactus_Big_idx 18
+#define sprites_Sand_Small_idx 19
+#define sprites_Sand_Medium_idx 20
+#define sprites_Sand_Big_idx 21
