@@ -1,5 +1,18 @@
 --atlas -f rgba8888 -z auto
 Frog_Standing.png
 Frog_Resting.png
+Frog_Resting_Big.png
 Frog_Jumping.png
 Yellow_Car.png
+Dying_Particles1.png
+Dying_Particles2.png
+Dying_Particles3.png
+Dying_Particles4.png
+Dying_Particles5.png
+Fly.png
+Barrel_Empty.png
+Barrel_Content.png
+Bottom_Screen_Menu.png
+Button_Pressed.png
+Button_Not_Pressed.png
+

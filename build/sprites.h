@@ -3,5 +3,17 @@
 
 #define sprites_Frog_Standing_idx 0
 #define sprites_Frog_Resting_idx 1
-#define sprites_Frog_Jumping_idx 2
-#define sprites_Yellow_Car_idx 3
+#define sprites_Frog_Resting_Big_idx 2
+#define sprites_Frog_Jumping_idx 3
+#define sprites_Yellow_Car_idx 4
+#define sprites_Dying_Particles1_idx 5
+#define sprites_Dying_Particles2_idx 6
+#define sprites_Dying_Particles3_idx 7
+#define sprites_Dying_Particles4_idx 8
+#define sprites_Dying_Particles5_idx 9
+#define sprites_Fly_idx 10
+#define sprites_Barrel_Empty_idx 11
+#define sprites_Barrel_Content_idx 12
+#define sprites_Bottom_Screen_Menu_idx 13
+#define sprites_Button_Pressed_idx 14
+#define sprites_Button_Not_Pressed_idx 15
