@@ -29,7 +29,6 @@ Water_Small.png
 Water_Medium.png
 Water_Big.png
 
-
 Death_Particles_1_Small.png
 Death_Particles_2_Small.png
 Death_Particles_3_Small.png
@@ -52,6 +51,7 @@ Button_Pressed.png
 Button_Not_Pressed.png
 Bottom_Screen_Menu.png
 
+Number_0.png
 Number_1.png
 Number_2.png
 Number_3.png
@@ -62,5 +62,10 @@ Number_7.png
 Number_8.png
 Number_9.png
 
-
+Hat_Chingon_Small.png
+Hat_Chingon_Medium.png
+Hat_Chingon_Big.png
+Hat_Chingon_Small_Above.png
+Hat_Chingon_Medium_Above.png
+Hat_Chingon_Big_Above.png
 
