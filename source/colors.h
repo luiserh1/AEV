@@ -1,5 +1,5 @@
-#ifndef BALL_H
-#define BALL_H
+#ifndef COLORS_H
+#define COLORS_H
 
 #define WHITE C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF)
 #define GREY C2D_Color32(0xD3, 0xD3, 0xD3, 0xA0)

@@ -1,3 +1,6 @@
+#define DEBBUG_CONTROLS true
+#define BOTTOM_SCREEN_CONSOLE true
+
 #include <citro2d.h>
 
 #include <stdio.h>
@@ -8,11 +11,16 @@
 
 #include <sprites.h>
 #include "colors.h"
+#include "sin1.h" // author stfwi from https://www.atwillys.de/content/cc/sine-lookup-for-embedded-in-c/?lang=en
+#include "intArithmetic.h"
 
 // Screen size definitions
 #define TOP_SCREEN_WIDTH  400
 #define BOTTOM_SCREEN_WIDTH  320
 #define SCREENS_HEIGHT 240
+
+// Q15 number representing a full turn (360 degrees / 2*PI radians)
+#define FULL_TURN 32766
 
 // To define the game size
 #define SMALL 0
@@ -55,6 +63,8 @@ void processGameplayControls(u32 kDown, u32 kHeld, touchPosition touch);
 void processDebugControls(u32 kDown);
 void drawItem();
 void useItem();
+void showBottomScreen(C3D_RenderTarget* bot);
+void showTopScreen(C3D_RenderTarget* top);
 
 static int gameSize = MEDIUM;	// Each level may have a different number of tiles
 static int gridEnabled = false; // This is a debug option to see all of the tiles
@@ -63,7 +73,6 @@ static bool buttonPressed;	// True if the UI button is pressed this cycle
 static int numRows, numColumns;	// This variables will contain the values to know how many are
 static int jumpSize;			// This also represent the size of the tile's side
 static Frog player;				// The player
-
 
 static C2D_SpriteSheet spriteSheet; 	// The tex3ds spritesheet
 static C2D_Sprite terrainSprites[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
@@ -438,6 +447,28 @@ void useItem()
 		default: break;
 	}
 }
+
+void showBottomScreen(C3D_RenderTarget* bot)
+{
+	u32 backgroundBot = BLUE;
+	C2D_TargetClear(bot, backgroundBot);
+	//C3D_FrameDrawOn(bot); I do not know what is this for, but it seems like I do not need it
+	C2D_SceneBegin(bot);
+	drawUIMenu();
+}
+
+void showTopScreen(C3D_RenderTarget* top)
+{
+	u32 backgroundTop = WHITE;
+	C2D_TargetClear(top, backgroundTop);
+	C2D_SceneBegin(top);
+	for (int i = 0; i < numColumns; i++) 
+		for (int j = 0; j < numRows; j++)
+			C2D_DrawSprite(&terrainSprites[i][j]);
+	if (gridEnabled) drawGrid();
+	drawIdlePlayer();
+}
+
 ///////////////////
 // MAIN FUNCTION //
 ///////////////////
@@ -457,7 +488,23 @@ int main(int argc, char* argv[])
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
 	if (!spriteSheet) svcBreak(USERBREAK_PANIC);
 	initGame();
-	//consoleInit(GFX_BOTTOM, NULL);
+	
+	if (BOTTOM_SCREEN_CONSOLE)
+	{
+		consoleInit(GFX_BOTTOM, NULL);
+		printf("Debug console initiallized\n");
+	   	printf("Sin1 of 0 %f\n", q15ToFloat(sin1(0)));
+		printf("Sin1 of 45 %f\n", q15ToFloat(sin1(FULL_TURN / 8)));
+		printf("Sin1 of 90 %f\n", q15ToFloat(sin1(FULL_TURN / 4))); 
+		printf("Cos1 of 0 %f\n", q15ToFloat(cos1(0)));
+		printf("Cos1 of 45 %f\n", q15ToFloat(cos1(45)));
+		printf("Cos1 of 90 %f\n", q15ToFloat(cos1(90)));
+
+		printf("\nFloatToQ of 0 %d\n", floatToQ15(0));
+		printf("FloatToQ of 0.125f %d\n", floatToQ15(0.125f));
+		printf("FloatToQ of 0.25f %d\n", floatToQ15(0.25f));
+	}
+
 	// Main loop
 	while (aptMainLoop())
 	{
@@ -471,29 +518,16 @@ int main(int argc, char* argv[])
 		touchPosition touch;
 		hidTouchRead(&touch); 		// Read the touch screen coordinates
 		// Debug Controls
-		processDebugControls(kDown);
+		if (DEBBUG_CONTROLS) processDebugControls(kDown);
 		// Gameplay controls
 		processGameplayControls(kDown, kHeld, touch);
 		
-		u32 backgroundTop = WHITE;
-		u32 backgroundBot = BLUE;
 		// Render the scene
-		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-			C2D_TargetClear(top, backgroundTop);
-			C2D_SceneBegin(top);
-
-			for (int i = 0; i < numColumns; i++) 
-				for (int j = 0; j < numRows; j++)
-					C2D_DrawSprite(&terrainSprites[i][j]);
-			if (gridEnabled) drawGrid();
-			drawIdlePlayer();
-			
+		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);	
+			// The top screen has the all the movement related gameplay sprites and drawings
+			showTopScreen(top);
 			// The bottom screen has the all UI related sprites and drawings
-			C2D_TargetClear(bot, backgroundBot);
-			C3D_FrameDrawOn(bot);
-			C2D_SceneBegin(bot);
-			drawUIMenu();
-
+			if (!BOTTOM_SCREEN_CONSOLE) showBottomScreen(bot);
 		C3D_FrameEnd(0);
 		C2D_Flush();
 		gfxSwapBuffers(); // We need this to display things
