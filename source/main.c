@@ -1,5 +1,5 @@
 #define DEBBUG_CONTROLS true
-#define BOTTOM_SCREEN_CONSOLE true
+#define BOTTOM_SCREEN_CONSOLE false
 
 #include <citro2d.h>
 
@@ -13,6 +13,7 @@
 #include "colors.h"
 #include "sin1.h" // author stfwi from https://www.atwillys.de/content/cc/sine-lookup-for-embedded-in-c/?lang=en
 #include "intArithmetic.h"
+#include "animation.h"
 
 // Screen size definitions
 #define TOP_SCREEN_WIDTH  400
@@ -21,6 +22,9 @@
 
 // Q15 number representing a full turn (360 degrees / 2*PI radians)
 #define FULL_TURN 32766
+
+// Time per animation frame
+#define TIME_PER_FRAME_MILIS 50;
 
 // To define the game size
 #define SMALL 0
@@ -39,7 +43,7 @@ typedef struct
 	enum STATE state;			// State of the frog's state machine
 	enum ORIENTATION orientation;	// Orientation wich the frog is facing
 	int x, y;					// Coords to represent the position in the grid
-	C2D_Sprite* spr;				// Sprite to draw the frog
+	Animation *anim;				// Sprite to draw the frog
 } Frog;	
 
 void drawUIMenu();
@@ -90,6 +94,10 @@ static C2D_Sprite barrelEmptySprite, barrelContentSprite;
 static C2D_Sprite UILayout;
 static C2D_Sprite *currentJumpingSprite, *currentIdleSprite, *currentHatSprite;
 
+static AnimationFrame idleFrogFrames[3][1];
+static Animation frogIdleAnimations[3];
+static AnimationFrame jumpingFrogFrames[3][3];
+static Animation frogJumpingAnimations[3];
 
 static float capacity;		// Represents the water left
 static int fliesCount;		// Getting three flies equals to 1UP
@@ -106,8 +114,8 @@ void initGame()
 	// The frog's sprites in all their variants
 	for (int i = 0; i < 3; i++)
 	{
-		C2D_Sprite* spriteIdle = &frogIdleSprites[i];
-		C2D_Sprite* spriteJumping = &frogJumpingSprites[i];
+		C2D_Sprite *spriteIdle = &frogIdleSprites[i];
+		C2D_Sprite *spriteJumping = &frogJumpingSprites[i];
 		C2D_SpriteFromSheet(spriteIdle, spriteSheet, sprites_Frog_Standing_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
 		C2D_SpriteFromSheet(spriteJumping, spriteSheet, sprites_Frog_Jumping_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
 		C2D_SpriteSetCenter(spriteIdle, 0.5f, 0.5f);
@@ -119,8 +127,8 @@ void initGame()
 	// The hats YIIIIIIHAAAWWWWLLLLEYYYY!
 	for (int i = 0; i < 3; i++)
 	{
-		C2D_Sprite* spriteWearable = &wearableHatSprites[i];
-		C2D_Sprite* spritePickable = &pickableHatSprites[i];
+		C2D_Sprite *spriteWearable = &wearableHatSprites[i];
+		C2D_Sprite *spritePickable = &pickableHatSprites[i];
 		C2D_SpriteFromSheet(spriteWearable, spriteSheet, sprites_Hat_Chingon_Big_Above_idx - i); // IMPORTANT they are followed on sprites.t3s
 		C2D_SpriteFromSheet(spritePickable, spriteSheet, sprites_Hat_Chingon_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
 		C2D_SpriteSetCenter(spriteWearable, 0.5f, 0.5f);
@@ -133,7 +141,7 @@ void initGame()
 	C2D_SpriteFromSheet(&UIItemsSprites[HAT_CHINGON], spriteSheet, sprites_Hat_Chingon_Big_idx);
 	for (int i = 0; i < 1; i++)
 	{
-		C2D_Sprite* sprite = &UIItemsSprites[i];
+		C2D_Sprite *sprite = &UIItemsSprites[i];
 		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
 		C2D_SpriteSetPos(sprite, 230, 125);
 		C2D_SpriteSetDepth(sprite, 1.0f);
@@ -148,7 +156,7 @@ void initGame()
 	// The fly icon sprites
 	for (int i = 0; i < 3; i++)
 	{
-		C2D_Sprite* sprite = &fliesIconSprites[i];
+		C2D_Sprite *sprite = &fliesIconSprites[i];
 		C2D_SpriteFromSheet(sprite, spriteSheet, sprites_Fly_1_Big_idx);
 		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
 		C2D_SpriteSetPos(sprite, 125, 101 + 38 * i); // 38 are the pixeles between the frame's centers
@@ -158,7 +166,7 @@ void initGame()
 	// The numbers sprites
 	for (int i = 0; i < 10; i++)
 	{
-		C2D_Sprite* sprite = &numbersSprites[i];
+		C2D_Sprite *sprite = &numbersSprites[i];
 		C2D_SpriteFromSheet(sprite, spriteSheet, sprites_Number_0_idx + i); // IMPORTANT they are followed on sprites.t3s
 		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
 		C2D_SpriteSetPos(sprite, 143, 40); // They share the same position because they are not meant to appear at the same time
@@ -169,7 +177,7 @@ void initGame()
 	for (int i = 0; i < 6; i++)
 	{
 		int j = i;
-		C2D_Sprite* sprite;
+		C2D_Sprite *sprite;
 		if (i < 3)
 		{
 			sprite = &lifeIconsSprites[j];
@@ -207,6 +215,34 @@ void initGame()
 	C2D_SpriteSetPos(&barrelContentSprite, 64, 198); 		// The barrel is a bit higher than the content because it's 3 pixels bigger
 	C2D_SpriteSetDepth(&barrelContentSprite, 0.5f); 		// The will be displayed over the layout and under the barrel
 
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	// Setting up the frog animations
+	for (int i = 0; i < 3; i++)
+	{
+		idleFrogFrames[i][0].timeFrames = 9999;
+		C2D_Sprite *spriteIdle = &idleFrogFrames[i][0].spr;
+		C2D_SpriteFromSheet(spriteIdle, spriteSheet, sprites_Frog_Standing_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
+		C2D_SpriteSetCenter(spriteIdle, 0.5f, 0.5f);
+		C2D_SpriteSetDepth(spriteIdle, 0.75f);
+
+		jumpingFrogFrames[i][0].timeFrames = 2;
+		jumpingFrogFrames[i][1].timeFrames = 16;
+		jumpingFrogFrames[i][2].timeFrames = 2;
+		for (int j = 0; j < 3; j++)
+		{
+			C2D_Sprite *spriteJumpingJ = &jumpingFrogFrames[i][j];
+			if (j == 1) C2D_SpriteFromSheet(spriteJumpingJ, spriteSheet, sprites_Frog_Jumping_Big_idx - i); // Since we do not have many sprites the first
+			else C2D_SpriteFromSheet(spriteJumpingJ, spriteSheet, sprites_Frog_Standing_Big_idx - i); 		// and last sprite of the jumping animation are
+			C2D_SpriteSetCenter(spriteJumpingJ, 0.5f, 0.5f);												// just the frog standing sprites.
+			C2D_SpriteSetDepth(spriteJumpingJ, 0.75f);														// TODO add more and different sprites
+		}
+	}
+
+
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	// This will set the terrain and the player configuration
 	setGameFromSize(SMALL);
 }
@@ -227,6 +263,9 @@ void setGameFromSize(int newSize)
 	currentJumpingSprite = &frogJumpingSprites[gameSize];
 	currentIdleSprite = &frogIdleSprites[gameSize];
 	currentHatSprite = &wearableHatSprites[gameSize];
+
+	frogIdleAnimations->frames = &idleFrogFrames[gameSize][0];
+	frogJumpingAnimations->frames = &jumpingFrogFrames[gameSize][0];
 
 	// The terrain and the player properties change depending on the siz of the game
 	setTerrainSprites();
@@ -298,7 +337,7 @@ void setTerrainSprites()
 	{
 		for (int j = 0; j < numRows; j++)
 		{
-			C2D_Sprite* sprite = &terrainSprites[i][j];
+			C2D_Sprite *sprite = &terrainSprites[i][j];
 			C2D_SpriteFromSheet(sprite, spriteSheet, sandSpriteSize);
 			C2D_SpriteSetCenter(sprite, 0.0f, 0.0f);
 			C2D_SpriteSetPos(sprite, i * jumpSize, j * jumpSize);
@@ -481,8 +520,8 @@ int main(int argc, char* argv[])
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);	// Initialize citro2D
 	C2D_Prepare();						// Prepares the GPU for rendering 2D content
 
-	C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT); // The action of the game will occur here
-	C3D_RenderTarget* bot = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT); 
+	C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT); // The action of the game will occur here
+	C3D_RenderTarget *bot = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT); 
 
 	// Load graphics
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
@@ -503,6 +542,12 @@ int main(int argc, char* argv[])
 		printf("\nFloatToQ of 0 %d\n", floatToQ15(0));
 		printf("FloatToQ of 0.125f %d\n", floatToQ15(0.125f));
 		printf("FloatToQ of 0.25f %d\n", floatToQ15(0.25f));
+
+		printf("\nTime in miliseconds %lld\n", osGetTime());
+
+		printf("This is a number in 17_15: %ld\n", (int32_t) 7896541);
+		printf("This is a number in q15: %ld\n", (int32_t) floatToQ15(0.35f));
+		printf("And this is the result of the sum: %ld\n", (int32_t) addQ15To17_15(floatToQ15(0.35f), 7896541));
 	}
 
 	// Main loop
