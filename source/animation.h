@@ -2,28 +2,67 @@
 #define ANIMATION_H
 
 #include <citro2d.h>
-
-typedef struct 
-{
-	int timeFrames;
-	C2D_Sprite spr;
-} AnimationFrame;
+#include <time.h>
 
 typedef struct
 {
-	int fullAnimationFrames;
-	int currentAnimationFrame;
+	int x, y;
+} Coords;
+
+typedef struct 
+{
+	int duration, currentFrame;
+	C2D_Sprite spr;
+} SpriteAnimationFrame;
+
+typedef struct
+{
+	int totalFrames, currentAnimationFrame;
 	bool loop;
-	bool playing;
-	AnimationFrame *frames;
-} Animation;
+	bool paused, stopped;
+	SpriteAnimationFrame *frames;
+} SpriteAnimation;
 
-void setUpeAnimation(Animation *anim, AnimationFrame *frames, bool setLooping);
+typedef struct 
+{
+	Coords coords;
+	float depth;
+	int duration, currentFrame;
+	C2D_Image img;
+	C2D_ImageTint *tint;
+} ImageAnimationFrame;
 
-void resetAnimation(Animation *anim);
+typedef struct
+{
+	bool paused, stopped;
+	int totalFrames, currentAnimationFrame;
+	ImageAnimationFrame *frames;
+} ImageAnimation;
 
-void stopAnimation(Animation *anim);
+void setUpSpriteAnimation(SpriteAnimation *anim, SpriteAnimationFrame *frames, int totalFrames, bool setLooping);
 
-void playAnimation(Animation *anim);
+void resetSpriteAnimation(SpriteAnimation *anim);
+
+void pauseSpriteAnimation(SpriteAnimation *anim);
+
+void playSpriteAnimation(SpriteAnimation *anim);
+
+void stopSpriteAnimation(SpriteAnimation *anim);
+
+bool renderSpriteAnimation(SpriteAnimation *anim, int frameSteps);
+
+Coords getCoordsFromSpriteAnimation(SpriteAnimation *anim);
+
+void setUpImageAnimation(ImageAnimation *anim, ImageAnimationFrame *frames, int totalFrames);
+
+void resetImageAnimation(ImageAnimation *anim);
+
+void pauseImageAnimation(ImageAnimation *anim);
+
+void playImageAnimation(ImageAnimation *anim);
+
+void stopImageAnimation(ImageAnimation *anim);
+
+bool renderImageAnimation(ImageAnimation *anim, int frameSteps);
 
 #endif

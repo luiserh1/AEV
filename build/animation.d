@@ -1,5 +1,6 @@
-main.o: \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/main.c \
+animation.o: \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/animation.c \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/animation.h \
  /opt/devkitpro/libctru/include/citro2d.h \
  /opt/devkitpro/libctru/include/citro3d.h \
  /opt/devkitpro/libctru/include/c3d/types.h \
@@ -103,18 +104,9 @@ main.o: \
  /opt/devkitpro/libctru/include/c2d/spritesheet.h \
  /opt/devkitpro/libctru/include/c2d/sprite.h \
  /opt/devkitpro/libctru/include/c2d/text.h \
- /opt/devkitpro/libctru/include/c2d/font.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_sprites.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/frog.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/items.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_images.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/obstacles.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/particles.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/terrain.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/colors.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/sin1.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/intArithmetic.h \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/animation.h
+ /opt/devkitpro/libctru/include/c2d/font.h
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/animation.h:
 
 /opt/devkitpro/libctru/include/citro2d.h:
 
@@ -323,25 +315,3 @@ main.o: \
 /opt/devkitpro/libctru/include/c2d/text.h:
 
 /opt/devkitpro/libctru/include/c2d/font.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_sprites.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/frog.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/items.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_images.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/obstacles.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/particles.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/terrain.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/colors.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/sin1.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/intArithmetic.h:
-
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/animation.h:

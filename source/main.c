@@ -9,7 +9,14 @@
 #include <3ds.h>
 #include <time.h>
 
-#include <sprites.h>
+#include <menu_sprites.h>
+#include <frog.h>
+#include <items.h>
+#include <menu_images.h>
+#include <obstacles.h>
+#include <particles.h>
+#include <terrain.h>
+
 #include "colors.h"
 #include "sin1.h" // author stfwi from https://www.atwillys.de/content/cc/sine-lookup-for-embedded-in-c/?lang=en
 #include "intArithmetic.h"
@@ -40,15 +47,15 @@ enum ITEMS { HAT_CHINGON, NONE };
 // To represent the player
 typedef struct 
 {
-	enum STATE state;			// State of the frog's state machine
-	enum ORIENTATION orientation;	// Orientation wich the frog is facing
-	int x, y;					// Coords to represent the position in the grid
-	Animation *anim;				// Sprite to draw the frog
+	enum STATE state;					// State of the frog's state machine
+	enum ORIENTATION orientation;		// Orientation wich the frog is facing
+	int x, y;							// Coords to represent the position in the grid
+	SpriteAnimation *anim;				// Sprite to draw the frog
 } Frog;	
 
 void drawUIMenu();
 void initGame();
-void setTerrainSprites();
+void setTerrain();
 void setGameFromSize(int newSize);
 void decrementGameSize();
 void incrementGameSize();
@@ -77,29 +84,60 @@ static bool buttonPressed;	// True if the UI button is pressed this cycle
 static int numRows, numColumns;	// This variables will contain the values to know how many are
 static int jumpSize;			// This also represent the size of the tile's side
 static Frog player;				// The player
+	
+// The tex3ds spritesheets
+static C2D_SpriteSheet frogSpriteSheet;			// Sprites for the frog's representation
+static C2D_SpriteSheet itemsSpriteSheet;		// Sprites for the pickable items' representation
+static C2D_SpriteSheet menuImagesSpriteSheet;	// Images for the menu's representation
+static C2D_SpriteSheet menuSpritesSpriteSheet;	// Sprites for the menu's representation
+static C2D_SpriteSheet obstaclesSpriteSheet;	// Sprites for the obstacles' representation
+static C2D_SpriteSheet particlesSpriteSheet;	// Sprites for the particles' representation
+static C2D_SpriteSheet terrainSpriteSheet; 		// Images for the level terrain's representation
 
-static C2D_SpriteSheet spriteSheet; 	// The tex3ds spritesheet
-static C2D_Sprite terrainSprites[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
-static C2D_Sprite fliesIconSprites[3];
-static C2D_Sprite lifeIconsSprites[3];
-static C2D_Sprite deathIconsSprites[3];
-static C2D_Sprite numbersSprites[10];
-static C2D_Sprite frogIdleSprites[3];
-static C2D_Sprite frogJumpingSprites[3];
-static C2D_Sprite wearableHatSprites[3];
-static C2D_Sprite pickableHatSprites[3];
-static C2D_Sprite UIItemsSprites[1];
-static C2D_Sprite buttonPressedSprite, buttonNotPressedSprite;
-static C2D_Sprite barrelEmptySprite, barrelContentSprite;
-static C2D_Sprite UILayout;
-static C2D_Sprite *currentJumpingSprite, *currentIdleSprite, *currentHatSprite;
+// Top screen animations for...
+// ... the frog's states
+static SpriteAnimationFrame idleFrogFrames[3][1];
+static SpriteAnimation frogIdleAnimations[3];
+static SpriteAnimationFrame jumpingFrogFrames[3][3];
+static SpriteAnimation frogJumpingAnimations[3];
+// ... the wereable hat
+static SpriteAnimationFrame wereableHatFrames[3][1];
+static SpriteAnimation wereableHatAnimations[3];
+// ... the terrain
+static ImageAnimationFrame terrainFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
+static ImageAnimation terrainAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
 
-static AnimationFrame idleFrogFrames[3][1];
-static Animation frogIdleAnimations[3];
-static AnimationFrame jumpingFrogFrames[3][3];
-static Animation frogJumpingAnimations[3];
+// Bottom Screen animations for...
+// ... the layout (images)
+static ImageAnimationFrame layoutFrames[1];
+static ImageAnimation layoutAnimation;
+// ... the button (images)
+static ImageAnimationFrame buttonFrames[1];
+static ImageAnimation buttonAnimation;
+static ImageAnimationFrame buttonPressedFrames[1];
+static ImageAnimation buttonPressedAnimation;
+// ... the life/death icons (sprites)
+static SpriteAnimationFrame lifeIconsFrames[3][1];
+static SpriteAnimation lifeIconsAnimations[3];
+static SpriteAnimationFrame deathIconsFrames[3][1];
+static SpriteAnimation deathIconsAnimations[3];
+// ... the flies icons (sprites)
+static SpriteAnimationFrame flyIconsFrames[3][2];
+static SpriteAnimation flyIconsAnimations[3];
+// ... the water barrel (sprites)
+static SpriteAnimationFrame barrelFrontFrames[1];
+static SpriteAnimation barrelFrontAnimation;
+static SpriteAnimationFrame barrelContentFrames[100];
+static SpriteAnimation barrelContentAnimation;
+static SpriteAnimationFrame barrelBackFrames[1];
+static SpriteAnimation barrelBackAnimation;
+// ... the phase numbers (sprites)
+static SpriteAnimationFrame phaseNumbersSprites[9][20];
+static SpriteAnimation phaseNumbersAnimations[9];
+// ... the items (sprites)
+static SpriteAnimationFrame itemsSprites[1][20];
+static SpriteAnimation itemsAnimations[1];
 
-static float capacity;		// Represents the water left
 static int fliesCount;		// Getting three flies equals to 1UP
 static int livesCount;		// Getting three flies equals to 1UP
 static int currentPhase;	// Number corresponding to the current phase
@@ -111,136 +149,174 @@ static enum ITEMS currentItem;
 //////////////////////
 void initGame()
 {
-	// The frog's sprites in all their variants
-	for (int i = 0; i < 3; i++)
-	{
-		C2D_Sprite *spriteIdle = &frogIdleSprites[i];
-		C2D_Sprite *spriteJumping = &frogJumpingSprites[i];
-		C2D_SpriteFromSheet(spriteIdle, spriteSheet, sprites_Frog_Standing_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
-		C2D_SpriteFromSheet(spriteJumping, spriteSheet, sprites_Frog_Jumping_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
-		C2D_SpriteSetCenter(spriteIdle, 0.5f, 0.5f);
-		C2D_SpriteSetCenter(spriteJumping, 0.5f, 0.5f);
-		C2D_SpriteSetDepth(spriteIdle, 1.0f); 
-		C2D_SpriteSetDepth(spriteJumping, 1.0f); 
-	}
-
-	// The hats YIIIIIIHAAAWWWWLLLLEYYYY!
-	for (int i = 0; i < 3; i++)
-	{
-		C2D_Sprite *spriteWearable = &wearableHatSprites[i];
-		C2D_Sprite *spritePickable = &pickableHatSprites[i];
-		C2D_SpriteFromSheet(spriteWearable, spriteSheet, sprites_Hat_Chingon_Big_Above_idx - i); // IMPORTANT they are followed on sprites.t3s
-		C2D_SpriteFromSheet(spritePickable, spriteSheet, sprites_Hat_Chingon_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
-		C2D_SpriteSetCenter(spriteWearable, 0.5f, 0.5f);
-		C2D_SpriteSetCenter(spritePickable, 0.5f, 0.5f);
-		C2D_SpriteSetDepth(spriteWearable, 1.0f); // DO NOT PUT THE DEPTH VALUE OVER 1.0f!!!!!!
-		C2D_SpriteSetDepth(spritePickable, 1.0f); 
-	}
-
-	// The items
-	C2D_SpriteFromSheet(&UIItemsSprites[HAT_CHINGON], spriteSheet, sprites_Hat_Chingon_Big_idx);
-	for (int i = 0; i < 1; i++)
-	{
-		C2D_Sprite *sprite = &UIItemsSprites[i];
-		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
-		C2D_SpriteSetPos(sprite, 230, 125);
-		C2D_SpriteSetDepth(sprite, 1.0f);
-	}	 
-
-	// Capacitable screen menu Layout
-	C2D_SpriteFromSheet(&UILayout, spriteSheet, sprites_Bottom_Screen_Menu_idx);
-	C2D_SpriteSetCenter(&UILayout, 0.0f, 0.0f);
-	C2D_SpriteSetPos(&UILayout, 0, 0);
-	C2D_SpriteSetDepth(&UILayout, 0.0f); 
-
-	// The fly icon sprites
-	for (int i = 0; i < 3; i++)
-	{
-		C2D_Sprite *sprite = &fliesIconSprites[i];
-		C2D_SpriteFromSheet(sprite, spriteSheet, sprites_Fly_1_Big_idx);
-		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
-		C2D_SpriteSetPos(sprite, 125, 101 + 38 * i); // 38 are the pixeles between the frame's centers
-		C2D_SpriteSetDepth(sprite, 1.0f); // The will be displayed over the layout
-	}
-
-	// The numbers sprites
-	for (int i = 0; i < 10; i++)
-	{
-		C2D_Sprite *sprite = &numbersSprites[i];
-		C2D_SpriteFromSheet(sprite, spriteSheet, sprites_Number_0_idx + i); // IMPORTANT they are followed on sprites.t3s
-		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
-		C2D_SpriteSetPos(sprite, 143, 40); // They share the same position because they are not meant to appear at the same time
-		C2D_SpriteSetDepth(sprite, 1.0f); // The will be displayed over the layout
-	}
-
-	// The life and death icon sprites
-	for (int i = 0; i < 6; i++)
-	{
-		int j = i;
-		C2D_Sprite *sprite;
-		if (i < 3)
-		{
-			sprite = &lifeIconsSprites[j];
-			C2D_SpriteFromSheet(sprite, spriteSheet, sprites_Frog_Life_Icon_idx); // IMPORTANT they are followed on sprites.t3s
-		}
-		else
-		{
-			j -= 3;
-			sprite = &deathIconsSprites[j];
-			C2D_SpriteFromSheet(sprite, spriteSheet, sprites_Frog_Death_Icon_idx); // IMPORTANT they are followed on sprites.t3s
-		}
-		C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
-		C2D_SpriteSetPos(sprite, 270 - j * 40, 40); // 40 are the pixeles between the Lives holders
-		C2D_SpriteSetDepth(sprite, 1.0f); // The will be displayed over the layout
-	}
-
-	// Pressable and pressed button go on the same position obv.
-	C2D_SpriteFromSheet(&buttonNotPressedSprite, spriteSheet, sprites_Button_Not_Pressed_idx);
-	C2D_SpriteSetCenter(&buttonNotPressedSprite, 0.0f, 0.0f);
-	C2D_SpriteSetPos(&buttonNotPressedSprite, 181, 177); // The coords have been obtained using GIMP
-	C2D_SpriteSetDepth(&buttonNotPressedSprite, 1.0f); 
-	C2D_SpriteFromSheet(&buttonPressedSprite, spriteSheet, sprites_Button_Pressed_idx);
-	C2D_SpriteSetCenter(&buttonPressedSprite, 0.0f, 0.0f);
-	C2D_SpriteSetPos(&buttonPressedSprite, 181, 177);
-	C2D_SpriteSetDepth(&buttonPressedSprite, 1.0f); 
-
-	// The barrel
-	C2D_SpriteFromSheet(&barrelEmptySprite, spriteSheet, sprites_Barrel_Empty_idx);
-	C2D_SpriteSetCenter(&barrelEmptySprite, 0.5f, 1.0f); 	// The pivot is set in this position to reduce the level of
-	C2D_SpriteSetPos(&barrelEmptySprite, 64, 201); 			// the content easily just scaling
-	C2D_SpriteSetDepth(&barrelEmptySprite, 1.0f); 			// The will be displayed over the layout
-	// The content
-	C2D_SpriteFromSheet(&barrelContentSprite, spriteSheet, sprites_Barrel_Content_idx);
-	C2D_SpriteSetCenter(&barrelContentSprite, 0.5f, 1.0f); 	
-	C2D_SpriteSetPos(&barrelContentSprite, 64, 198); 		// The barrel is a bit higher than the content because it's 3 pixels bigger
-	C2D_SpriteSetDepth(&barrelContentSprite, 0.5f); 		// The will be displayed over the layout and under the barrel
-
-	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 	// Setting up the frog animations
 	for (int i = 0; i < 3; i++)
 	{
-		idleFrogFrames[i][0].timeFrames = 9999;
+		idleFrogFrames[i][0].duration = 9999;
 		C2D_Sprite *spriteIdle = &idleFrogFrames[i][0].spr;
-		C2D_SpriteFromSheet(spriteIdle, spriteSheet, sprites_Frog_Standing_Big_idx - i); // IMPORTANT they are followed on sprites.t3s
+		C2D_SpriteFromSheet(spriteIdle, frogSpriteSheet, frog_Frog_Standing_Big_idx - i); // IMPORTANT they are one after each other on the spritesheet
 		C2D_SpriteSetCenter(spriteIdle, 0.5f, 0.5f);
 		C2D_SpriteSetDepth(spriteIdle, 0.75f);
-
-		jumpingFrogFrames[i][0].timeFrames = 2;
-		jumpingFrogFrames[i][1].timeFrames = 16;
-		jumpingFrogFrames[i][2].timeFrames = 2;
+		//C2D_SpriteSetPos(spriteIdle, 100 + 90 * i, 75); We specify the pos when animating the moves
+		jumpingFrogFrames[i][0].duration = 20;
+		jumpingFrogFrames[i][1].duration = 160;
+		jumpingFrogFrames[i][2].duration = 20;
 		for (int j = 0; j < 3; j++)
 		{
-			C2D_Sprite *spriteJumpingJ = &jumpingFrogFrames[i][j];
-			if (j == 1) C2D_SpriteFromSheet(spriteJumpingJ, spriteSheet, sprites_Frog_Jumping_Big_idx - i); // Since we do not have many sprites the first
-			else C2D_SpriteFromSheet(spriteJumpingJ, spriteSheet, sprites_Frog_Standing_Big_idx - i); 		// and last sprite of the jumping animation are
-			C2D_SpriteSetCenter(spriteJumpingJ, 0.5f, 0.5f);												// just the frog standing sprites.
-			C2D_SpriteSetDepth(spriteJumpingJ, 0.75f);														// TODO add more and different sprites
+			C2D_Sprite *spriteJumpingJ = &jumpingFrogFrames[i][j].spr;
+			if (j == 1) C2D_SpriteFromSheet(spriteJumpingJ, frogSpriteSheet, frog_Frog_Jumping_Big_idx - i); 	// Since we do not have many sprites the first
+			else C2D_SpriteFromSheet(spriteJumpingJ, frogSpriteSheet, frog_Frog_Standing_Big_idx - i); 			// and last sprite of the jumping animation are
+			C2D_SpriteSetCenter(spriteJumpingJ, 0.5f, 0.5f);													// just the frog standing sprites.
+			C2D_SpriteSetDepth(spriteJumpingJ, 0.75f);															// TODO add more and different sprites
+			//C2D_SpriteSetPos(spriteJumpingJ,100 + 90 * i, 165); This positions were for testing porpuses											
 		}
+
+		setUpSpriteAnimation(&frogIdleAnimations[i], &idleFrogFrames[i][0], 1, true);
+		setUpSpriteAnimation(&frogJumpingAnimations[i], &jumpingFrogFrames[i][0], 3, true);
 	}
 
+	// Setting up the wereable hat animations
+	for (int i = 0; i < 3; i++)
+	{
+		wereableHatFrames[i][0].duration = 9999;
+		C2D_Sprite *hatSprite = &wereableHatFrames[i][0].spr;
+		C2D_SpriteFromSheet(hatSprite, frogSpriteSheet, frog_Hat_Chingon_Big_Above_idx - i);
+		C2D_SpriteSetCenter(hatSprite, 0.5f, 0.5f);													// just the frog standing sprites.
+		C2D_SpriteSetDepth(hatSprite, 0.85f);			
+		C2D_SpriteSetPos(hatSprite, 100 + 90 * i, 165);
+		setUpSpriteAnimation(&wereableHatAnimations[i], &wereableHatFrames[i][0], 1, true);	
+	}
+	
+	// Setting up the layout's animations
+	layoutFrames[0].duration = 9999;
+	layoutFrames[0].coords.x = 0;
+	layoutFrames[0].coords.y = 0;
+	layoutFrames[0].depth = -1.0f;
+	C2D_Image *img = &layoutFrames[0].img;
+	*img = C2D_SpriteSheetGetImage(menuImagesSpriteSheet, menu_images_Bottom_Screen_Menu_idx);
+	setUpImageAnimation(&layoutAnimation, &layoutFrames[0], 1);
 
+	// Setting up the life/death icons' animations
+	for (int i = 0; i < 3; i++)
+	{
+		lifeIconsFrames[i][0].duration = 9999;
+		deathIconsFrames[i][0].duration = 9999;
+		C2D_Sprite *spriteLife = &lifeIconsFrames[i][0].spr;
+		C2D_Sprite *spriteDeath = &deathIconsFrames[i][0].spr;
+		C2D_SpriteFromSheet(spriteLife, menuSpritesSpriteSheet, menu_sprites_Frog_Life_Icon_idx);
+		C2D_SpriteFromSheet(spriteDeath, menuSpritesSpriteSheet, menu_sprites_Frog_Death_Icon_idx);
+		C2D_SpriteSetCenter(spriteLife, 0.5f, 0.5f);
+		C2D_SpriteSetCenter(spriteDeath, 0.5f, 0.5f);
+		C2D_SpriteSetDepth(spriteLife, 0.0f);		
+		C2D_SpriteSetDepth(spriteDeath, 0.0f);			
+		C2D_SpriteSetPos(spriteLife, 270 - i * 40, 40);	
+		C2D_SpriteSetPos(spriteDeath, 270 - i * 40, 40);
+		setUpSpriteAnimation(&lifeIconsAnimations[i], &lifeIconsFrames[i][0], 1, true);
+		setUpSpriteAnimation(&deathIconsAnimations[i], &deathIconsFrames[i][0], 1, true);
+	}
 
+	// Setting up the button's animations
+	buttonFrames[0].duration = 9999;
+	buttonFrames[0].coords.x = 181;
+	buttonFrames[0].coords.y = 177;
+	layoutFrames[0].depth = 0.0f;
+	img = &buttonFrames[0].img;
+	*img = C2D_SpriteSheetGetImage(menuImagesSpriteSheet, menu_images_Button_Not_Pressed_idx);
+	setUpImageAnimation(&buttonAnimation, &buttonFrames[0], 1);
+	buttonPressedFrames[0].duration = 9999;
+	buttonPressedFrames[0].coords.x = 181;
+	buttonPressedFrames[0].coords.y = 177;
+	layoutFrames[0].depth = 0.0f;
+	img = &buttonPressedFrames[0].img;
+	*img = C2D_SpriteSheetGetImage(menuImagesSpriteSheet, menu_images_Button_Pressed_idx);
+	setUpImageAnimation(&buttonPressedAnimation, &buttonPressedFrames[0], 1);
+
+	// Setting up the barrels's animations
+	barrelBackFrames[0].duration = 9999;
+	C2D_Sprite *sprite = &barrelBackFrames[0].spr;
+	C2D_SpriteFromSheet(sprite, menuSpritesSpriteSheet, menu_sprites_Barrel_Inside_idx);
+	C2D_SpriteSetCenter(sprite, 0.5f, 1.0f);
+	C2D_SpriteSetDepth(sprite, 0.25f);			
+	C2D_SpriteSetPos(sprite, 64, 201);	
+	setUpSpriteAnimation(&barrelBackAnimation, &barrelBackFrames[0], 1, true);
+	barrelFrontFrames[0].duration = 9999;
+	sprite = &barrelFrontFrames[0].spr;
+	C2D_SpriteFromSheet(sprite, menuSpritesSpriteSheet, menu_sprites_Barrel_Empty_idx);
+	C2D_SpriteSetCenter(sprite, 0.5f, 1.0f);
+	C2D_SpriteSetDepth(sprite, 0.75f);			
+	C2D_SpriteSetPos(sprite, 64, 201);	
+	setUpSpriteAnimation(&barrelFrontAnimation, &barrelFrontFrames[0], 1, true);
+	for (int i = 0; i < 100; i++) 
+	{
+		barrelContentFrames[i].duration = 6;
+		C2D_Sprite *spriteContent = &barrelContentFrames[i].spr;
+		C2D_SpriteFromSheet(spriteContent, menuSpritesSpriteSheet, menu_sprites_Barrel_Content_idx);
+		C2D_SpriteSetCenter(spriteContent, 0.5f, 1.0f);
+		C2D_SpriteSetDepth(spriteContent, 0.65f);			
+		C2D_SpriteSetPos(spriteContent, 64, 198);	
+		C2D_SpriteSetScale(spriteContent, 1.0f, 1.0f - 0.01f * i);
+	}
+	setUpSpriteAnimation(&barrelContentAnimation, &barrelContentFrames[0], 100, false);
+
+	// Setting up the flies icons' animations
+	for (int i = 0; i < 3; i++)
+	{
+		flyIconsFrames[i][0].duration = 10;
+		flyIconsFrames[i][1].duration = 20;
+		C2D_Sprite *spriteWingsUp = &flyIconsFrames[i][0].spr;
+		C2D_Sprite *spriteWingsDown = &flyIconsFrames[i][1].spr;
+		C2D_SpriteFromSheet(spriteWingsUp, menuSpritesSpriteSheet, menu_sprites_Fly_1_Big_idx);
+		C2D_SpriteFromSheet(spriteWingsDown, menuSpritesSpriteSheet, menu_sprites_Fly_2_Big_idx);
+		C2D_SpriteSetCenter(spriteWingsUp, 0.5f, 0.5f);
+		C2D_SpriteSetCenter(spriteWingsDown, 0.5f, 0.5f);
+		C2D_SpriteSetDepth(spriteWingsUp, 0.0f);		
+		C2D_SpriteSetDepth(spriteWingsDown, 0.0f);			
+		C2D_SpriteSetPos(spriteWingsUp, 125, 101 + 38 * i);	
+		C2D_SpriteSetPos(spriteWingsDown,  125, 101 + 38 * i);
+		setUpSpriteAnimation(&flyIconsAnimations[i], &flyIconsFrames[i][0], 2, true);
+	}
+
+	// Setting up the phase numbers animation
+	for (int i = 0; i < 9; i++)
+	{
+		for (int j = 0; j < 20; j++)
+		{
+			phaseNumbersSprites[i][j].duration = 5;
+			C2D_Sprite *sprite = &phaseNumbersSprites[i][j].spr;
+			if (j < 10)
+			{
+				C2D_SpriteFromSheet(sprite, menuSpritesSpriteSheet, menu_sprites_Number_0_idx + i);
+				C2D_SpriteSetScale(sprite, 1.0f - 0.1f * j, 1.0f - 0.1f * j);
+
+			}
+			else
+			{
+				C2D_SpriteFromSheet(sprite, menuSpritesSpriteSheet, menu_sprites_Number_1_idx + i);
+				C2D_SpriteSetScale(sprite, 0.1f + 0.1f * (j - 10), 0.1f + 0.1f * (j -10));
+			}
+			C2D_SpriteSetPos(sprite, 143, 40);
+			C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
+			C2D_SpriteSetDepth(sprite, 0.0f);
+		}
+		setUpSpriteAnimation(&phaseNumbersAnimations[i], &phaseNumbersSprites[i][0], 20, false);
+	}
+
+	// Setting up the items animations
+	for (int i = 0; i < 1; i++)
+	{
+		for (int j = 0; j < 20; j++)
+		{
+			itemsSprites[i][j].duration = 5;
+			C2D_Sprite *sprite = &itemsSprites[i][j].spr;
+			C2D_SpriteFromSheet(sprite, itemsSpriteSheet, items_Hat_Chingon_Big_idx);
+			C2D_SpriteSetPos(sprite, 230, 125);
+			C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
+			C2D_SpriteSetDepth(sprite, 0.0f);
+			//C2D_SpriteSetRotationDegrees(sprite, q15ToFloat(sin1(FULL_TURN / 20 * j)) * 20.0f);
+			C2D_SpriteSetRotationDegrees(sprite, q15ToFloat(sin1(floatToQ15(1.0f / 20 * j))) * 20.0f);
+		}
+		setUpSpriteAnimation(&itemsAnimations[i], &itemsSprites[i][0], 20, true);
+	}
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	// This will set the terrain and the player configuration
@@ -260,15 +336,8 @@ void setGameFromSize(int newSize)
 	numColumns = TOP_SCREEN_WIDTH / sideSize; 
 	jumpSize = sideSize;
 
-	currentJumpingSprite = &frogJumpingSprites[gameSize];
-	currentIdleSprite = &frogIdleSprites[gameSize];
-	currentHatSprite = &wearableHatSprites[gameSize];
-
-	frogIdleAnimations->frames = &idleFrogFrames[gameSize][0];
-	frogJumpingAnimations->frames = &jumpingFrogFrames[gameSize][0];
-
 	// The terrain and the player properties change depending on the siz of the game
-	setTerrainSprites();
+	setTerrain();
 	resetPlayerProperties();
 }
 
@@ -306,41 +375,42 @@ void resetPlayerProperties()
 	chingonMode = false;
 	currentItem = NONE;
 	livesCount = 1;
-	capacity = 1.0f;
 	fliesCount = 1;
+
+	int tileOffset = jumpSize / 2;
+	int rowPos = numRows / 2;
+	int colPos = 0;
+	for (int i = 0; i < frogIdleAnimations[gameSize].totalFrames; i++)
+	{
+		C2D_SpriteSetPos(&frogIdleAnimations[gameSize].frames[i].spr, colPos * jumpSize + tileOffset, rowPos * jumpSize + tileOffset);
+		C2D_SpriteSetRotationDegrees(&frogIdleAnimations[gameSize].frames[i].spr, 90);
+	}
+	player.anim = &frogIdleAnimations[gameSize];
+	resetSpriteAnimation(player.anim);
+	resetSpriteAnimation(&barrelContentAnimation);
 	player.state = IDLE;
 	player.x = 0;
 	player.y = numRows / 2;
 	player.orientation = RIGHT;
-	resetPlayerSpriteProperties();
 }
 
-void resetPlayerSpriteProperties()
-{
-	switch (player.orientation)
-	{
-		case UP: 	C2D_SpriteSetRotationDegrees(player.spr, 0); break;
-		case DOWN: 	C2D_SpriteSetRotationDegrees(player.spr, 180); break;
-		case LEFT: 	C2D_SpriteSetRotationDegrees(player.spr, 270); break;
-		case RIGHT: C2D_SpriteSetRotationDegrees(player.spr, 90); break;
-	}
-	C2D_SpriteSetCenter(player.spr, 0.5f, 0.5f); 	
-}
 
-void setTerrainSprites()
+void setTerrain()
 {
 	int sandSpriteSize;
-	if (gameSize == SMALL) sandSpriteSize = sprites_Sand_Big_idx;
-	else if (gameSize == MEDIUM) sandSpriteSize = sprites_Sand_Medium_idx;
-	else sandSpriteSize = sprites_Sand_Small_idx;
+	if (gameSize == SMALL) sandSpriteSize = terrain_Sand_Big_idx;
+	else if (gameSize == MEDIUM) sandSpriteSize = terrain_Sand_Medium_idx;
+	else sandSpriteSize = terrain_Sand_Big_idx;
 	for (int i = 0; i < numColumns; i++) 
 	{
 		for (int j = 0; j < numRows; j++)
 		{
-			C2D_Sprite *sprite = &terrainSprites[i][j];
-			C2D_SpriteFromSheet(sprite, spriteSheet, sandSpriteSize);
-			C2D_SpriteSetCenter(sprite, 0.0f, 0.0f);
-			C2D_SpriteSetPos(sprite, i * jumpSize, j * jumpSize);
+			terrainFrames[i][j][0].coords.x = i * jumpSize;
+			terrainFrames[i][j][0].coords.y = j * jumpSize;
+			terrainFrames[i][j][0].depth = 0.0f;
+			C2D_Image *img = &terrainFrames[i][j][0].img;
+			*img = C2D_SpriteSheetGetImage(terrainSpriteSheet, sandSpriteSize);
+			setUpImageAnimation(&terrainAnimations[i][j], &terrainFrames[i][j][0], 1);
 		}
 	}
 }
@@ -362,67 +432,12 @@ void drawGrid() // Using rectangles to draw lines might not be the most efficien
 	}
 }
 
-void drawIdlePlayer()
-{
-	player.spr = currentIdleSprite;
-	drawPlayer();
-}
-
-void drawJumpingPlayer()
-{
-	player.spr = currentJumpingSprite;
-	drawPlayer();
-}
-
-void drawPlayer()
-{
-	resetPlayerSpriteProperties();
-	int tileOffset = jumpSize / 2; // To set the sprite on the center of the tile
-	C2D_SpriteSetPos(player.spr, player.x * jumpSize + tileOffset, player.y * jumpSize + tileOffset);
-	C2D_DrawSprite(player.spr);
-	if (chingonMode)
-	{
-		C2D_SpriteSetPos(currentHatSprite, player.x * jumpSize + tileOffset, player.y * jumpSize + tileOffset);
-		C2D_DrawSprite(currentHatSprite);
-	}
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void drawUIMenu()
-{
-	// The layout
-	C2D_DrawSprite(&UILayout);
-	// The button
-	if (buttonPressed) C2D_DrawSprite(&buttonPressedSprite);
-	else C2D_DrawSprite(&buttonNotPressedSprite); 
-
-	// The barrel and its content
-	C2D_SpriteSetScale(&barrelContentSprite, 1.0f, 1.0f * capacity);
-	C2D_DrawSprite(&barrelContentSprite); 
-	C2D_DrawSprite(&barrelEmptySprite);
-
-	// The fly icons
-	for (int i = 0; i < fliesCount; i++)
-		C2D_DrawSprite(&fliesIconSprites[i]);
-
-	// The life and death icons
-	for (int i = 0; i < 3; i++) 
-	{
-		if (i < livesCount) C2D_DrawSprite(&lifeIconsSprites[i]);
-		else C2D_DrawSprite(&deathIconsSprites[i]);
-	}
-
-	// The phase number
-	C2D_DrawSprite(&numbersSprites[currentPhase]);
-
-	drawItem();
-}
 
 void drawItem()
 {
 	if (currentItem == NONE) return;
-	C2D_DrawSprite(&UIItemsSprites[currentItem]);
+	renderSpriteAnimation(&itemsAnimations[currentItem], 1);
 }
 
 //////////////////////
@@ -474,7 +489,6 @@ void processGameplayControls(u32 kDown, u32 kHeld, touchPosition touch)
 	}
 }
 
-
 void useItem()
 {
 	switch (currentItem)
@@ -493,19 +507,56 @@ void showBottomScreen(C3D_RenderTarget* bot)
 	C2D_TargetClear(bot, backgroundBot);
 	//C3D_FrameDrawOn(bot); I do not know what is this for, but it seems like I do not need it
 	C2D_SceneBegin(bot);
-	drawUIMenu();
+	// The layout
+	renderImageAnimation(&layoutAnimation, 1);
+
+	// The life and death icons
+	for (int i = 0; i < 3; i++)
+	{
+		if (i < livesCount) renderSpriteAnimation(&lifeIconsAnimations[i], 1);
+		else renderSpriteAnimation(&deathIconsAnimations[i], 1);
+	}
+	// The button
+	if (buttonPressed) renderImageAnimation(&buttonPressedAnimation, 1);
+	else renderImageAnimation(&buttonAnimation, 1);
+
+	// The barrel and its content
+	renderSpriteAnimation(&barrelBackAnimation, 1);
+	renderSpriteAnimation(&barrelContentAnimation, 1);
+	renderSpriteAnimation(&barrelFrontAnimation, 1);
+
+
+	for (int i = 0; i < fliesCount; i++)
+		renderSpriteAnimation(&flyIconsAnimations[i], 1); // TODO: Not animation for the 0
+
+	// The phase number
+	renderSpriteAnimation(&phaseNumbersAnimations[currentPhase], 1);
+
+	// The item
+	drawItem();
 }
 
 void showTopScreen(C3D_RenderTarget* top)
 {
-	u32 backgroundTop = WHITE;
+	u32 backgroundTop = BLUE;
 	C2D_TargetClear(top, backgroundTop);
 	C2D_SceneBegin(top);
+
+	// The terrain
 	for (int i = 0; i < numColumns; i++) 
+	{
 		for (int j = 0; j < numRows; j++)
-			C2D_DrawSprite(&terrainSprites[i][j]);
+		{
+			renderImageAnimation(&terrainAnimations[i][j], 1);
+		}
+	}
+	
+	// The (debug) grid
 	if (gridEnabled) drawGrid();
-	drawIdlePlayer();
+
+	renderSpriteAnimation(&frogIdleAnimations[gameSize], 1);
+
+	
 }
 
 ///////////////////
@@ -524,8 +575,15 @@ int main(int argc, char* argv[])
 	C3D_RenderTarget *bot = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT); 
 
 	// Load graphics
-	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
-	if (!spriteSheet) svcBreak(USERBREAK_PANIC);
+	frogSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/frog.t3x");
+	itemsSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/items.t3x");
+	menuImagesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/menu_images.t3x");
+	menuSpritesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/menu_sprites.t3x");
+	obstaclesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/obstacles.t3x");
+	particlesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/particles.t3x");
+	terrainSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/terrain.t3x");
+	if (!frogSpriteSheet || !itemsSpriteSheet || !menuImagesSpriteSheet || !menuSpritesSpriteSheet
+		|| !obstaclesSpriteSheet || !particlesSpriteSheet || !terrainSpriteSheet) svcBreak(USERBREAK_PANIC);
 	initGame();
 	
 	if (BOTTOM_SCREEN_CONSOLE)
@@ -536,26 +594,18 @@ int main(int argc, char* argv[])
 		printf("Sin1 of 45 %f\n", q15ToFloat(sin1(FULL_TURN / 8)));
 		printf("Sin1 of 90 %f\n", q15ToFloat(sin1(FULL_TURN / 4))); 
 		printf("Cos1 of 0 %f\n", q15ToFloat(cos1(0)));
-		printf("Cos1 of 45 %f\n", q15ToFloat(cos1(45)));
-		printf("Cos1 of 90 %f\n", q15ToFloat(cos1(90)));
+		printf("Cos1 of 45 %f\n", q15ToFloat(cos1(floatToQ15(0.25f))));
+		printf("Cos1 of 90 %f\n", q15ToFloat(cos1(floatToQ15(0.5f))));
 
 		printf("\nFloatToQ of 0 %d\n", floatToQ15(0));
-		printf("FloatToQ of 0.125f %d\n", floatToQ15(0.125f));
 		printf("FloatToQ of 0.25f %d\n", floatToQ15(0.25f));
-
-		printf("\nTime in miliseconds %lld\n", osGetTime());
-
-		printf("This is a number in 17_15: %ld\n", (int32_t) 7896541);
-		printf("This is a number in q15: %ld\n", (int32_t) floatToQ15(0.35f));
-		printf("And this is the result of the sum: %ld\n", (int32_t) addQ15To17_15(floatToQ15(0.35f), 7896541));
+		printf("FloatToQ of 0.5f %d\n", floatToQ15(0.5f));
+		printf("FloatToQ of 0.9999f %d\n", floatToQ15(0.9999f));
 	}
 
 	// Main loop
 	while (aptMainLoop())
-	{
-		gfxSwapBuffers(); // We need this to display things
-		if (capacity > 0) capacity -= 0.001f;
-		
+	{		
 		// Checking the input
 		hidScanInput();
 		u32 kDown = hidKeysDown(); 	// Read thebuttons pressed this cycle
@@ -567,10 +617,14 @@ int main(int argc, char* argv[])
 		// Gameplay controls
 		processGameplayControls(kDown, kHeld, touch);
 		
+		gfxSwapBuffers(); // We need this to display things
 		// Render the scene
 		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);	
 			// The top screen has the all the movement related gameplay sprites and drawings
 			showTopScreen(top);
+		//C3D_FrameEnd(0);
+		C2D_Flush();
+		//C3D_FrameBegin(C3D_FRAME_SYNCDRAW);	
 			// The bottom screen has the all UI related sprites and drawings
 			if (!BOTTOM_SCREEN_CONSOLE) showBottomScreen(bot);
 		C3D_FrameEnd(0);

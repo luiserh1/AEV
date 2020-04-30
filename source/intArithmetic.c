@@ -73,9 +73,10 @@ float q15ToFloat(int16_t q)
     return  q / (float)(2 << (Q-1));
 }
 
+/*From 0 (inclusive) to 1 (not inclusive)*/
 int16_t floatToQ15(float q)
 {
-    return (int) (q * (2 << Q));
+    return (int16_t) (q * (2 << (Q-1)));
 }
 
 int32_t addQ15To17_15(int16_t q15, int32_t ia17_15)
