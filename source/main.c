@@ -812,7 +812,7 @@ void showTopScreen(C3D_RenderTarget* top)
 	}
 
 	// The player
-	renderSpriteAnimation(player.anim, 1);
+	renderSpriteAnimation(player.anim, 3);
 	if (chingonMode) 
 	{
 		// The hat moves with the frog
@@ -875,10 +875,11 @@ int main(int argc, char* argv[])
 			printf("Game Size: %.10s\n", gameSizeNames[gameSize]);
 			printf("State: %.10s\n", stateNames[player.state]);
 			printf("Orientation: %.10s\n", orientationNames[player.orientation]);
-			printf("Current Frame(%d/%d)\nFrame Process(%d/%d)\n",
+			printf("Current Frame(%d/%d)\nFrame Process(%d/%d)\nAnimation end?:%d\n",
 				player.anim->currentAnimationFrame + 1, player.anim->totalFrames,
-				player.anim->frames[player.anim->currentAnimationFrame].currentFrame + 1,
-				player.anim->frames[player.anim->currentAnimationFrame].duration);
+				player.anim->frames[player.anim->currentAnimationFrame].currentFrame,
+				player.anim->frames[player.anim->currentAnimationFrame].duration,
+				hasEndedSpriteAnimation(player.anim));
 			Coords oldCoords = getCoordsFromSpriteAnimation(player.anim);
 			printf("Coords(%d, %d)\n", oldCoords.x, oldCoords.y);
 			printf("\n========================================\nLives: %d\n", livesCount);

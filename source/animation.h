@@ -18,7 +18,7 @@ typedef struct
 typedef struct
 {
 	int totalFrames, currentAnimationFrame;
-	bool loop;
+	bool loop, endFrame;
 	bool paused, stopped;
 	SpriteAnimationFrame *frames;
 } SpriteAnimation;

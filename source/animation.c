@@ -12,6 +12,7 @@ void setUpSpriteAnimation(SpriteAnimation *anim, SpriteAnimationFrame *animFrame
 void resetSpriteAnimation(SpriteAnimation *anim)
 {
 	anim->currentAnimationFrame = 0;
+	anim->endFrame = false;
 	for (int i = 0; i < anim->totalFrames; i++)
 		anim->frames[i].currentFrame = 0;
 	playSpriteAnimation(anim);
@@ -29,42 +30,38 @@ void stopSpriteAnimation(SpriteAnimation *anim) { anim->stopped = true; }
 
 bool renderSpriteAnimation(SpriteAnimation *anim, int frameSteps)
 {
-	if (anim->stopped) return false;
-	int *caf = &anim->currentAnimationFrame;
+	if (anim->stopped) return false;				// If it's stopped it does not show anything
+	int *caf = &anim->currentAnimationFrame;		
 	int *cff = &anim->frames[*caf].currentFrame;
-	C2D_Sprite *sprite = &anim->frames[*caf].spr;
+	if (*caf >= anim->totalFrames)					// If it ended last frame and it's a loop, restarts
+		resetSpriteAnimation(anim);					// If it's not a loop it will display the last frame each time
+	C2D_Sprite *sprite = &anim->frames[*caf].spr;	// as it was paused there
 	C2D_DrawSprite(sprite);
 	if (anim->paused) return false;
 	*cff += frameSteps;
-	if (*cff >= anim->frames[*caf].duration)
+	while (*cff >= anim->frames[*caf].duration)
 	{
-		*cff = 0;
+		*cff -= anim->frames[*caf].duration;
 		(*caf)++;
 		if (*caf >= anim->totalFrames)
 		{
-			if (!anim->loop) // If it's not a loop the animation remains paused in it's last frame
+			if (!anim->loop) 
 			{
 				anim->paused = true;
 				(*caf)--;
 			}
-			else *caf = 0; // If it's a loop the animation starts again
-			return true;
+			anim->endFrame = true;
+			break;
 		}
 	}
-	return false;
+	return anim->endFrame;
 }
 
-bool hasEndedSpriteAnimation(SpriteAnimation *anim)
-{
-	int *caf = &anim->currentAnimationFrame;
-	int *cff = &anim->frames[*caf].currentFrame;
-	if (*caf+1 >= anim->totalFrames && *cff+1 >= anim->frames[*caf].duration) return true;
-	else return false;
-}
+bool hasEndedSpriteAnimation(SpriteAnimation *anim) { return anim->endFrame; }
 
 Coords getCoordsFromSpriteAnimation(SpriteAnimation *anim)
-{
-	C2D_Sprite *currentSprite = &anim->frames[anim->currentAnimationFrame].spr;
+{																		// The "-1" means the counter goes one
+	C2D_Sprite *currentSprite = &anim->frames[anim->currentAnimationFrame - 1].spr;	// frame ahead
 	Coords res;
 	res.x = currentSprite->params.pos.x;
 	res.y = currentSprite->params.pos.y;
@@ -98,17 +95,19 @@ bool renderImageAnimation(ImageAnimation *anim, int frameSteps)
 {
 	if (anim->stopped) return false;
 	int *caf = &anim->currentAnimationFrame;
+	if (*caf >= anim->totalFrames)					
+		resetImageAnimation(anim);
 	ImageAnimationFrame *imgFrame = &anim->frames[*caf];
-	int *cff = &imgFrame->currentFrame;
+	int *cff = &imgFrame->currentFrame;	
 	C2D_DrawImageAt(imgFrame->img, imgFrame->coords.x, imgFrame->coords.y, imgFrame->depth, imgFrame->tint, 1.0f, 1.0f);
 	if (anim->paused) return false;
 	*cff += frameSteps;
-	if (*cff >= anim->frames[*caf].duration)
+	while (*cff >= anim->frames[*caf].duration)
 	{
-		*cff = 0;
+		*cff -= anim->frames[*caf].duration;
 		(*caf)++;
-		if (*caf >= anim->totalFrames) {
-			*caf = 0;
+		if (*caf >= anim->totalFrames)
+		{
 			return true;
 		}
 	}
