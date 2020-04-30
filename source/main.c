@@ -11,6 +11,7 @@
 #include <menu_sprites.h>
 #include <frog.h>
 #include <items.h>
+#include <pickable_items.h>
 #include <menu_images.h>
 #include <obstacles.h>
 #include <particles.h>
@@ -61,25 +62,26 @@ static char orientationNames[4][10] =
 	{'L','e','f','t',' ',' ',' ',' ',' ',' '}
 };
 // Pickeable items
-enum ITEMS { HAT_CHINGON, NONE };
+enum ITEMS { NONE, HAT_CHINGON };
 static char itemNames[2][10] = 
 {
-	{'H','a','t','C','h','i','n','g','o','n'},
-	{'N','o','n','e',' ',' ',' ',' ',' ',' '}
+	{'N','o','n','e',' ',' ',' ',' ',' ',' '},
+	{'H','a','t','C','h','i','n','g','o','n'}
 };
 // Obstacles
-enum OBSTACLES { CACTUS, EMPTY };
+enum OBSTACLES { EMPTY, CACTUS };
 static char obstaclesNames[2][10] = 
 {
-	{'C','a','c','t','u','s',' ',' ',' ',' '},
-	{'E','m','p','t','y',' ',' ',' ',' ',' '}
+	{'E','m','p','t','y',' ',' ',' ',' ',' '},
+	{'C','a','c','t','u','s',' ',' ',' ',' '}
 };
 // Terrain
-enum TERRAIN { WATER, SAND };
+enum TERRAIN { SAND, WATER };
 static char terrainNames[2][10] = 
 {
-	{'W','a','t','e','r',' ',' ',' ',' ',' '},
-	{'S','a','n','d',' ',' ',' ',' ',' ',' '}
+	{'S','a','n','d',' ',' ',' ',' ',' ',' '},
+	{'W','a','t','e','r',' ',' ',' ',' ',' '}
+
 };
 
 
@@ -94,7 +96,7 @@ typedef struct
 
 void drawUIMenu();
 void initGame();
-void setTerrain();
+void setTerrainElements();
 void setGameFromSize(enum GAME_SIZE newSize);
 void decrementGameSize();
 void incrementGameSize();
@@ -125,7 +127,8 @@ static Frog player;				// The player
 	
 // The tex3ds spritesheets
 static C2D_SpriteSheet frogSpriteSheet;			// Sprites for the frog's representation
-static C2D_SpriteSheet itemsSpriteSheet;		// Sprites for the pickable items' representation
+static C2D_SpriteSheet itemsSpriteSheet;		// Sprites for the menu items' representation
+static C2D_SpriteSheet pickableItemsSpriteSheet;// Sprites for the pickable items' representation
 static C2D_SpriteSheet menuImagesSpriteSheet;	// Images for the menu's representation
 static C2D_SpriteSheet menuSpritesSpriteSheet;	// Sprites for the menu's representation
 static C2D_SpriteSheet obstaclesSpriteSheet;	// Sprites for the obstacles' representation
@@ -145,8 +148,11 @@ static SpriteAnimation wereableHatAnimations[3];
 static ImageAnimationFrame terrainFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
 static ImageAnimation terrainAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
 // ... the obstacles
-static ImageAnimationFrame obstaclesFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
-static ImageAnimation obstaclesAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
+static SpriteAnimationFrame obstaclesFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
+static SpriteAnimation obstaclesAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
+// ... the items
+static SpriteAnimationFrame pickableItemsFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
+static SpriteAnimation pickableItemsAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
 
 // Bottom Screen animations for...
 // ... the layout (images)
@@ -176,8 +182,8 @@ static SpriteAnimation barrelBackAnimation;
 static SpriteAnimationFrame phaseNumbersSprites[9][20];
 static SpriteAnimation phaseNumbersAnimations[9];
 // ... the items (sprites)
-static SpriteAnimationFrame itemsSprites[1][20];
-static SpriteAnimation itemsAnimations[1];
+static SpriteAnimationFrame itemsFrames[2][20];
+static SpriteAnimation itemsAnimations[2];
 
 // Game state variables
 static int fliesCount;				// Getting three flies equals to 1UP
@@ -355,12 +361,12 @@ void initGame()
 	}
 
 	// Setting up the items animations
-	for (int i = 0; i < 1; i++)
+	for (int i = 1; i < 2; i++) // The item 0 is NONE
 	{
 		for (int j = 0; j < 20; j++)
 		{
-			itemsSprites[i][j].duration = 5;
-			C2D_Sprite *sprite = &itemsSprites[i][j].spr;
+			itemsFrames[i][j].duration = 5;
+			C2D_Sprite *sprite = &itemsFrames[i][j].spr;
 			C2D_SpriteFromSheet(sprite, itemsSpriteSheet, items_Hat_Chingon_Big_idx);
 			C2D_SpriteSetPos(sprite, 230, 125);
 			C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
@@ -368,7 +374,7 @@ void initGame()
 			//C2D_SpriteSetRotationDegrees(sprite, q15ToFloat(sin1(FULL_TURN / 20 * j)) * 20.0f);
 			C2D_SpriteSetRotationDegrees(sprite, q15ToFloat(sin1(floatToQ15(1.0f / 20 * j))) * 20.0f);
 		}
-		setUpSpriteAnimation(&itemsAnimations[i], &itemsSprites[i][0], 20, true);
+		setUpSpriteAnimation(&itemsAnimations[i], &itemsFrames[i][0], 20, true);
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -376,12 +382,35 @@ void initGame()
 	//==================//
 	// TERRAIN ELEMENTS //
 	//==================//
+	// 0 => Default
+	// Base terrain ([0 -> Sand | 1 -> Water])
+	for (int i = 0; i < TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL; i++)
+		for (int j = 0; j < SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL; j++)
+		{
+			if (i == TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL - 1)
+			{
+				terrain[i][j] = 1;
+				continue;
+			}
+			terrain[i][j] = 0; 
+		}
 
-	// Base terrain
-	/*terrain =
-	{
+	// Base obstacles [0 -> Empty | 1 -> Cactus]
+	for (int i = 0; i < TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL; i++)
+		for (int j = 0; j < SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL; j++)
+		{
+			obstacles[i][j] = 0; 
+		}
+	obstacles[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL - 2][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL - 2] = 1;
+	obstacles[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL - 12][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL - 9] = 1;
 
-	};*/
+	// Base obstacles [0 -> None | 1 -> Hat Chingon]
+	for (int i = 0; i < TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL; i++)
+		for (int j = 0; j < SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL; j++)
+		{
+			items[i][j] = 0; 
+		}
+	items[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL - 16][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL - 10] = 1;
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -407,7 +436,7 @@ void setGameFromSize(enum GAME_SIZE newSize)
 	jumpSize = sideSize;
 
 	// The terrain and the player properties change depending on the siz of the game
-	setTerrain();
+	setTerrainElements();
 	resetPlayerProperties();
 }
 
@@ -440,24 +469,102 @@ void resetPlayerProperties()
 	setOrientation(RIGHT);
 }
 
-void setTerrain()
+void setTerrainElements()
 {
-	int sandSpriteSize;
-	if (gameSize == SMALL) sandSpriteSize = terrain_Sand_Big_idx;
-	else if (gameSize == MEDIUM) sandSpriteSize = terrain_Sand_Medium_idx;
-	else sandSpriteSize = terrain_Sand_Big_idx;
+	// Used to place the sprites with pivot in (0'5, 0'5)
+	int tileOffset = jumpSize / 2;
+
+	// Ground images
+	int sandSprite, waterSprite;
+	// Obstacles sprites
+	int cactusSprite;
+	// Item sprites
+	int hatSprite;
+	if (gameSize == SMALL) 
+	{
+		sandSprite = terrain_Sand_Big_idx;
+		waterSprite = terrain_Water_Big_idx;
+		cactusSprite = obstacles_Cactus_Big_idx;
+		hatSprite = pickable_items_Hat_Chingon_Big_Above_idx;
+	}
+	else if (gameSize == MEDIUM) 
+	{
+		sandSprite = terrain_Sand_Medium_idx;
+		waterSprite = terrain_Water_Medium_idx;
+		cactusSprite = obstacles_Cactus_Medium_idx;
+		hatSprite = pickable_items_Hat_Chingon_Medium_Above_idx;
+	}
+	else // if (gameSize == BIG)
+	{ 
+		sandSprite = terrain_Sand_Small_idx;
+		waterSprite = terrain_Water_Small_idx;
+		cactusSprite = obstacles_Cactus_Small_idx;
+		hatSprite = pickable_items_Hat_Chingon_Small_Above_idx;
+	}
+
 	for (int i = 0; i < numColumns; i++) 
 	{
 		for (int j = 0; j < numRows; j++)
 		{
+			// Ground
 			terrainFrames[i][j][0].coords.x = i * jumpSize;
 			terrainFrames[i][j][0].coords.y = j * jumpSize;
 			terrainFrames[i][j][0].depth = 0.0f;
 			C2D_Image *img = &terrainFrames[i][j][0].img;
-			*img = C2D_SpriteSheetGetImage(terrainSpriteSheet, sandSpriteSize);
+			switch (terrain[i][j])
+			{
+				case WATER:
+					*img = C2D_SpriteSheetGetImage(terrainSpriteSheet, waterSprite);
+					break;
+				default: case SAND:
+					*img = C2D_SpriteSheetGetImage(terrainSpriteSheet, sandSprite);
+					break;
+			}
 			setUpImageAnimation(&terrainAnimations[i][j], &terrainFrames[i][j][0], 1);
+
+
+			// Obstacles
+			enum OBSTACLES obstacle = obstacles[i][j];
+			if (obstacle != EMPTY)
+			{
+				obstaclesFrames[i][j][0].duration = 1;
+				C2D_Sprite *obsSprite = &obstaclesFrames[i][j][0].spr;
+				switch (obstacle)
+				{
+					case CACTUS:
+						C2D_SpriteFromSheet(obsSprite, obstaclesSpriteSheet, cactusSprite);
+						break;
+					default:
+						break;
+				}
+				C2D_SpriteSetPos(obsSprite, i * jumpSize + tileOffset, j * jumpSize + tileOffset);
+				C2D_SpriteSetCenter(obsSprite, 0.5f, 0.5f);
+				C2D_SpriteSetDepth(obsSprite, 0.25f);
+				setUpSpriteAnimation(&obstaclesAnimations[i][j], &obstaclesFrames[i][j][0], 1, true);
+			}
+
+			// Items
+			enum ITEMS item = items[i][j];
+			if (item != NONE)
+			{
+				pickableItemsFrames[i][j][0].duration = 1;
+				C2D_Sprite *itemSprite = &pickableItemsFrames[i][j][0].spr;
+				switch (item)
+				{
+					case HAT_CHINGON:
+						C2D_SpriteFromSheet(itemSprite, pickableItemsSpriteSheet, hatSprite);
+						break;
+					default:
+						break;
+				}
+				C2D_SpriteSetPos(itemSprite, i * jumpSize + tileOffset, j * jumpSize + tileOffset);
+				C2D_SpriteSetCenter(itemSprite, 0.5f, 0.5f);
+				C2D_SpriteSetDepth(itemSprite, 0.25f);
+				setUpSpriteAnimation(&pickableItemsAnimations[i][j], &pickableItemsFrames[i][j][0], 1, true);
+			}
 		}
 	}
+
 }
 
 ////////////////////////
@@ -641,6 +748,9 @@ void showBottomScreen(C3D_RenderTarget* bot)
 	// The layout
 	renderImageAnimation(&layoutAnimation, 1);
 
+	// The item
+	drawItem();
+
 	// The life and death icons
 	for (int i = 0; i < 3; i++)
 	{
@@ -662,9 +772,6 @@ void showBottomScreen(C3D_RenderTarget* bot)
 
 	// The phase number
 	renderSpriteAnimation(&phaseNumbersAnimations[currentPhase], 1);
-
-	// The item
-	drawItem();
 }
 
 void showTopScreen(C3D_RenderTarget* top)
@@ -679,6 +786,28 @@ void showTopScreen(C3D_RenderTarget* top)
 		for (int j = 0; j < numRows; j++)
 		{
 			renderImageAnimation(&terrainAnimations[i][j], 1);
+		}
+	}
+
+	// The obstacles
+	for (int i = 0; i < numColumns; i++) 
+	{
+		for (int j = 0; j < numRows; j++)
+		{
+			enum OBSTACLES obstacle = obstacles[i][j];
+			if (obstacle != EMPTY)
+				renderSpriteAnimation(&obstaclesAnimations[i][j], 1);
+		}
+	}
+
+	// The items
+	for (int i = 0; i < numColumns; i++) 
+	{
+		for (int j = 0; j < numRows; j++)
+		{
+			enum ITEMS item = items[i][j];
+			if (item != NONE)
+				renderSpriteAnimation(&pickableItemsAnimations[i][j], 1);
 		}
 	}
 
@@ -724,12 +853,13 @@ int main(int argc, char* argv[])
 	// Load graphics
 	frogSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/frog.t3x");
 	itemsSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/items.t3x");
+	pickableItemsSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/pickable_items.t3x");
 	menuImagesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/menu_images.t3x");
 	menuSpritesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/menu_sprites.t3x");
 	obstaclesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/obstacles.t3x");
 	particlesSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/particles.t3x");
 	terrainSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/terrain.t3x");
-	if (!frogSpriteSheet || !itemsSpriteSheet || !menuImagesSpriteSheet || !menuSpritesSpriteSheet
+	if (!frogSpriteSheet || !itemsSpriteSheet || !pickableItemsSpriteSheet || !menuImagesSpriteSheet || !menuSpritesSpriteSheet
 		|| !obstaclesSpriteSheet || !particlesSpriteSheet || !terrainSpriteSheet) svcBreak(USERBREAK_PANIC);
 	
 	initGame();

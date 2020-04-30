@@ -107,6 +107,7 @@ main.o: \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_sprites.h \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/frog.h \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/items.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/pickable_items.h \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_images.h \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/obstacles.h \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/particles.h \
@@ -329,6 +330,8 @@ main.o: \
 /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/frog.h:
 
 /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/items.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/pickable_items.h:
 
 /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_images.h:
 
