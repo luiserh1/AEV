@@ -33,8 +33,10 @@
 // Time per animation frame
 #define TIME_PER_FRAME_MILIS 50;
 
-// To define the game size
+// Helful macros
 #define GRID_SQUARE_SIDE_SMALL 20
+#define MAX_ROWS 12
+#define MAX_COLUMNS 20
 // Game sizes
 enum GAME_SIZE { SMALL, MEDIUM, BIG };
 static char gameSizeNames[3][10] = 
@@ -90,7 +92,7 @@ typedef struct
 {
 	enum STATE state;					// State of the frog's state machine
 	enum ORIENTATION orientation;		// Orientation wich the frog is facing
-	int x, y;							// Coords to represent the position in the grid
+	int gridX, gridY;							// Coords to represent the position in the grid
 	SpriteAnimation *anim;				// Sprite to draw the frog
 } Frog;	
 
@@ -451,21 +453,23 @@ void resetPlayerProperties()
 	fliesCount = 1;
 
 	int tileOffset = jumpSize / 2;
-	int rowPos = numRows / 2;
-	int colPos = 0;
+	player.gridY = numRows / 2;
+	player.gridX = 0;
 	for (int i = 0; i < frogIdleAnimations[gameSize].totalFrames; i++)
 	{
-		C2D_SpriteSetPos(&frogIdleAnimations[gameSize].frames[i].spr, colPos * jumpSize + tileOffset, rowPos * jumpSize + tileOffset);
+		C2D_SpriteSetPos(&frogIdleAnimations[gameSize].frames[i].spr,
+			TOP_SCREEN_WIDTH 	- (numColumns) 		* jumpSize + tileOffset,
+			SCREENS_HEIGHT 		- (numRows / 2 + 1) 	* jumpSize + tileOffset);
 		setOrientation(RIGHT);
 	}
 	for (int i = 0; i < wereableHatAnimations[gameSize].totalFrames; i++)
-		C2D_SpriteSetPos(&wereableHatFrames[gameSize][i].spr, colPos * jumpSize + tileOffset, rowPos * jumpSize + tileOffset);
+		C2D_SpriteSetPos(&wereableHatFrames[gameSize][i].spr,
+			BOTTOM_SCREEN_WIDTH - numColumns * jumpSize + tileOffset,
+			SCREENS_HEIGHT - numRows * jumpSize + tileOffset);
 	player.anim = &frogIdleAnimations[gameSize];
 	resetSpriteAnimation(player.anim);
 	resetSpriteAnimation(&barrelContentAnimation);
 	player.state = IDLE;
-	player.x = 0;
-	player.y = numRows / 2;
 	setOrientation(RIGHT);
 }
 
@@ -507,11 +511,15 @@ void setTerrainElements()
 		for (int j = 0; j < numRows; j++)
 		{
 			// Ground
-			terrainFrames[i][j][0].coords.x = i * jumpSize;
-			terrainFrames[i][j][0].coords.y = j * jumpSize;
-			terrainFrames[i][j][0].depth = 0.0f;
-			C2D_Image *img = &terrainFrames[i][j][0].img;
-			switch (terrain[i][j])
+			int globalGridX = MAX_COLUMNS - i - 1;
+			int globalGridY = MAX_ROWS - j - 1;
+			int screenGridX = numColumns-i-1;
+			int screenGridY = numRows-j-1;
+			terrainFrames[globalGridX][globalGridY][0].coords.x = screenGridX * jumpSize;
+			terrainFrames[globalGridX][globalGridY][0].coords.y = screenGridY * jumpSize;
+			terrainFrames[globalGridX][globalGridY][0].depth = 0.0f;
+			C2D_Image *img = &terrainFrames[globalGridX][globalGridY][0].img;
+			switch (terrain[globalGridX][globalGridY])
 			{
 				case WATER:
 					*img = C2D_SpriteSheetGetImage(terrainSpriteSheet, waterSprite);
@@ -520,7 +528,7 @@ void setTerrainElements()
 					*img = C2D_SpriteSheetGetImage(terrainSpriteSheet, sandSprite);
 					break;
 			}
-			setUpImageAnimation(&terrainAnimations[i][j], &terrainFrames[i][j][0], 1);
+			setUpImageAnimation(&terrainAnimations[globalGridX][globalGridY], &terrainFrames[globalGridX][globalGridY][0], 1);
 
 
 			// Obstacles
@@ -564,7 +572,6 @@ void setTerrainElements()
 			}
 		}
 	}
-
 }
 
 ////////////////////////
@@ -592,6 +599,9 @@ void jump(enum ORIENTATION orientation)
 	player.state = JUMPING;
 	int deltaX = (orientation == RIGHT) * jumpSize - (orientation == LEFT) * jumpSize;
 	int deltaY = (orientation == DOWN) * jumpSize - (orientation == UP) * jumpSize; // The y axis are upside down
+
+	player.gridX += (orientation == RIGHT) - (orientation == LEFT);
+	player.gridY += (orientation == DOWN) - (orientation == UP);
 
 	Coords oldCoords = getCoordsFromSpriteAnimation(player.anim);
 	int totalFrames = frogJumpingAnimations[gameSize].totalFrames;
@@ -625,7 +635,15 @@ void move(enum ORIENTATION orientation)
 	else
 	{
 		if (orientation != player.orientation) movement = false;
-		else jump(orientation);
+		else 
+		{
+			if   (	(player.gridX < 1 && (orientation == LEFT))
+				|| 	(player.gridX > numColumns - 2 && (orientation == RIGHT))
+				|| 	(player.gridY < 1 && (orientation == UP))
+				|| 	(player.gridY > numRows - 2 && (orientation == DOWN)))
+				{ jump(IRRELEVANT); }
+			else { jump(orientation); }
+		}
 	}
 	if (!movement) idle();
 	resetSpriteAnimation(player.anim);
@@ -780,39 +798,23 @@ void showTopScreen(C3D_RenderTarget* top)
 	C2D_TargetClear(top, backgroundTop);
 	C2D_SceneBegin(top);
 
-	// The terrain
-	for (int i = 0; i < numColumns; i++) 
+	// The terrain elements
+	for (int i = MAX_COLUMNS - 1; i > MAX_COLUMNS - numColumns - 1; i--) 
 	{
-		for (int j = 0; j < numRows; j++)
+		for (int j = MAX_ROWS - 1; j > MAX_ROWS - numRows - 1; j--)
 		{
-			renderImageAnimation(&terrainAnimations[i][j], 1);
-		}
-	}
-
-	// The obstacles
-	for (int i = 0; i < numColumns; i++) 
-	{
-		for (int j = 0; j < numRows; j++)
-		{
+			renderImageAnimation(&terrainAnimations[i][j], 1);				// Ground
 			enum OBSTACLES obstacle = obstacles[i][j];
 			if (obstacle != EMPTY)
-				renderSpriteAnimation(&obstaclesAnimations[i][j], 1);
-		}
-	}
-
-	// The items
-	for (int i = 0; i < numColumns; i++) 
-	{
-		for (int j = 0; j < numRows; j++)
-		{
+				renderSpriteAnimation(&obstaclesAnimations[i][j], 1);		// Obstacles
 			enum ITEMS item = items[i][j];
 			if (item != NONE)
-				renderSpriteAnimation(&pickableItemsAnimations[i][j], 1);
+				renderSpriteAnimation(&pickableItemsAnimations[i][j], 1);	// Items
 		}
 	}
 
 	// The player
-	renderSpriteAnimation(player.anim, 3);
+	renderSpriteAnimation(player.anim, 7);
 	if (chingonMode) 
 	{
 		// The hat moves with the frog
