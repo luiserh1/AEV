@@ -1,5 +1,4 @@
 #define DEBBUG_CONTROLS true
-#define BOTTOM_SCREEN_CONSOLE false
 
 #include <citro2d.h>
 
@@ -34,15 +33,55 @@
 #define TIME_PER_FRAME_MILIS 50;
 
 // To define the game size
-#define SMALL 0
-#define MEDIUM 1
-#define BIG 2
 #define GRID_SQUARE_SIDE_SMALL 20
-
+// Game sizes
+enum GAME_SIZE { SMALL, MEDIUM, BIG };
+static char gameSizeNames[3][10] = 
+{
+	{'S','m','a','l','l',' ',' ',' ',' ',' '},
+	{'M','e','d','i','u','m',' ',' ',' ',' '},
+	{'B','i','g',' ',' ',' ',' ',' ',' ',' '}
+};
 // Frog's states
-enum STATE { IDLE, JUMPING, DYING };
-enum ORIENTATION { UP, DOWN, RIGHT, LEFT };
+enum STATE { SPAWNING, IDLE, JUMPING, DYING };
+static char stateNames[4][10] =					
+{
+	{'S','p','a','w','n','i','n','g',' ',' '},
+	{'I','d','l','e',' ',' ',' ',' ',' ',' '},
+	{'J','u','m','p','i','n','g',' ',' ',' '},
+	{'D','y','i','n','g',' ',' ',' ',' ',' '}
+};
+// Frog's orientations
+enum ORIENTATION { UP, DOWN, RIGHT, LEFT, IRRELEVANT };
+static char orientationNames[4][10] = 
+{
+	{'U','p',' ',' ',' ',' ',' ',' ',' ',' '},
+	{'D','o','w','n',' ',' ',' ',' ',' ',' '},
+	{'R','i','g','h','t',' ',' ',' ',' ',' '},
+	{'L','e','f','t',' ',' ',' ',' ',' ',' '}
+};
+// Pickeable items
 enum ITEMS { HAT_CHINGON, NONE };
+static char itemNames[2][10] = 
+{
+	{'H','a','t','C','h','i','n','g','o','n'},
+	{'N','o','n','e',' ',' ',' ',' ',' ',' '}
+};
+// Obstacles
+enum OBSTACLES { CACTUS, EMPTY };
+static char obstaclesNames[2][10] = 
+{
+	{'C','a','c','t','u','s',' ',' ',' ',' '},
+	{'E','m','p','t','y',' ',' ',' ',' ',' '}
+};
+// Terrain
+enum TERRAIN { WATER, SAND };
+static char terrainNames[2][10] = 
+{
+	{'W','a','t','e','r',' ',' ',' ',' ',' '},
+	{'S','a','n','d',' ',' ',' ',' ',' ',' '}
+};
+
 
 // To represent the player
 typedef struct 
@@ -56,16 +95,14 @@ typedef struct
 void drawUIMenu();
 void initGame();
 void setTerrain();
-void setGameFromSize(int newSize);
+void setGameFromSize(enum GAME_SIZE newSize);
 void decrementGameSize();
 void incrementGameSize();
 void drawGrid();
-void drawPlayer();
-void drawJumpingPlayer();
-void drawIdlePlayer();
 void resetPlayerProperties();
-void resetPlayerSpriteProperties();
 void setOrientation(enum ORIENTATION orientation);
+void jump(enum ORIENTATION orientation);
+void move(enum ORIENTATION orientation);
 void incrementFliesCount();
 void incrementLivesCount();
 void decrementLivesCount();
@@ -76,6 +113,7 @@ void drawItem();
 void useItem();
 void showBottomScreen(C3D_RenderTarget* bot);
 void showTopScreen(C3D_RenderTarget* top);
+void showConsole();
 
 static int gameSize = MEDIUM;	// Each level may have a different number of tiles
 static int gridEnabled = false; // This is a debug option to see all of the tiles
@@ -98,7 +136,7 @@ static C2D_SpriteSheet terrainSpriteSheet; 		// Images for the level terrain's r
 // ... the frog's states
 static SpriteAnimationFrame idleFrogFrames[3][1];
 static SpriteAnimation frogIdleAnimations[3];
-static SpriteAnimationFrame jumpingFrogFrames[3][3];
+static SpriteAnimationFrame jumpingFrogFrames[3][30];
 static SpriteAnimation frogJumpingAnimations[3];
 // ... the wereable hat
 static SpriteAnimationFrame wereableHatFrames[3][1];
@@ -106,6 +144,9 @@ static SpriteAnimation wereableHatAnimations[3];
 // ... the terrain
 static ImageAnimationFrame terrainFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
 static ImageAnimation terrainAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
+// ... the obstacles
+static ImageAnimationFrame obstaclesFrames[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL][1];
+static ImageAnimation obstaclesAnimations[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
 
 // Bottom Screen animations for...
 // ... the layout (images)
@@ -138,33 +179,45 @@ static SpriteAnimation phaseNumbersAnimations[9];
 static SpriteAnimationFrame itemsSprites[1][20];
 static SpriteAnimation itemsAnimations[1];
 
-static int fliesCount;		// Getting three flies equals to 1UP
-static int livesCount;		// Getting three flies equals to 1UP
-static int currentPhase;	// Number corresponding to the current phase
-static bool chingonMode;
-static enum ITEMS currentItem;
+// Game state variables
+static int fliesCount;				// Getting three flies equals to 1UP
+static int livesCount;				// To a max. of 3 lives (0 life counts)
+static int currentPhase;			// Number corresponding to the current phase
+static bool chingonMode;			// Special model where the capacity does not drop down
+static enum ITEMS currentItem;		// Current item in the box
+
+// Terrain elements distribution
+static enum OBSTACLES obstacles[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
+static enum TERRAIN terrain[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
+static enum ITEMS items[TOP_SCREEN_WIDTH / GRID_SQUARE_SIDE_SMALL][SCREENS_HEIGHT / GRID_SQUARE_SIDE_SMALL];
+
+static bool consoleMode;			// In console mode it's possible to visualize more data
+									// Once you active it there is not going back (debug only)
 
 //////////////////////
-// CONFIG FUNCTIONS //
+// SET UP FUNCTIONS //
 //////////////////////
+
 void initGame()
 {
+	//============//
+	// ANIMATIONS //
+	//============//
+
 	// Setting up the frog animations
 	for (int i = 0; i < 3; i++)
 	{
-		idleFrogFrames[i][0].duration = 9999;
+		idleFrogFrames[i][0].duration = 1;
 		C2D_Sprite *spriteIdle = &idleFrogFrames[i][0].spr;
 		C2D_SpriteFromSheet(spriteIdle, frogSpriteSheet, frog_Frog_Standing_Big_idx - i); // IMPORTANT they are one after each other on the spritesheet
 		C2D_SpriteSetCenter(spriteIdle, 0.5f, 0.5f);
 		C2D_SpriteSetDepth(spriteIdle, 0.75f);
 		//C2D_SpriteSetPos(spriteIdle, 100 + 90 * i, 75); We specify the pos when animating the moves
-		jumpingFrogFrames[i][0].duration = 20;
-		jumpingFrogFrames[i][1].duration = 160;
-		jumpingFrogFrames[i][2].duration = 20;
-		for (int j = 0; j < 3; j++)
+		for (int j = 0; j < 30; j++)
 		{
+			jumpingFrogFrames[i][j].duration = 5;
 			C2D_Sprite *spriteJumpingJ = &jumpingFrogFrames[i][j].spr;
-			if (j == 1) C2D_SpriteFromSheet(spriteJumpingJ, frogSpriteSheet, frog_Frog_Jumping_Big_idx - i); 	// Since we do not have many sprites the first
+			if (j > 3 && j < 27) C2D_SpriteFromSheet(spriteJumpingJ, frogSpriteSheet, frog_Frog_Jumping_Big_idx - i); 	// Since we do not have many sprites the first
 			else C2D_SpriteFromSheet(spriteJumpingJ, frogSpriteSheet, frog_Frog_Standing_Big_idx - i); 			// and last sprite of the jumping animation are
 			C2D_SpriteSetCenter(spriteJumpingJ, 0.5f, 0.5f);													// just the frog standing sprites.
 			C2D_SpriteSetDepth(spriteJumpingJ, 0.75f);															// TODO add more and different sprites
@@ -172,13 +225,13 @@ void initGame()
 		}
 
 		setUpSpriteAnimation(&frogIdleAnimations[i], &idleFrogFrames[i][0], 1, true);
-		setUpSpriteAnimation(&frogJumpingAnimations[i], &jumpingFrogFrames[i][0], 3, true);
+		setUpSpriteAnimation(&frogJumpingAnimations[i], &jumpingFrogFrames[i][0], 30, false);
 	}
 
 	// Setting up the wereable hat animations
 	for (int i = 0; i < 3; i++)
 	{
-		wereableHatFrames[i][0].duration = 9999;
+		wereableHatFrames[i][0].duration = 1;
 		C2D_Sprite *hatSprite = &wereableHatFrames[i][0].spr;
 		C2D_SpriteFromSheet(hatSprite, frogSpriteSheet, frog_Hat_Chingon_Big_Above_idx - i);
 		C2D_SpriteSetCenter(hatSprite, 0.5f, 0.5f);													// just the frog standing sprites.
@@ -188,7 +241,7 @@ void initGame()
 	}
 	
 	// Setting up the layout's animations
-	layoutFrames[0].duration = 9999;
+	layoutFrames[0].duration = 1;
 	layoutFrames[0].coords.x = 0;
 	layoutFrames[0].coords.y = 0;
 	layoutFrames[0].depth = -1.0f;
@@ -199,8 +252,8 @@ void initGame()
 	// Setting up the life/death icons' animations
 	for (int i = 0; i < 3; i++)
 	{
-		lifeIconsFrames[i][0].duration = 9999;
-		deathIconsFrames[i][0].duration = 9999;
+		lifeIconsFrames[i][0].duration = 1;
+		deathIconsFrames[i][0].duration = 1;
 		C2D_Sprite *spriteLife = &lifeIconsFrames[i][0].spr;
 		C2D_Sprite *spriteDeath = &deathIconsFrames[i][0].spr;
 		C2D_SpriteFromSheet(spriteLife, menuSpritesSpriteSheet, menu_sprites_Frog_Life_Icon_idx);
@@ -216,7 +269,7 @@ void initGame()
 	}
 
 	// Setting up the button's animations
-	buttonFrames[0].duration = 9999;
+	buttonFrames[0].duration = 1;
 	buttonFrames[0].coords.x = 181;
 	buttonFrames[0].coords.y = 177;
 	layoutFrames[0].depth = 0.0f;
@@ -232,7 +285,7 @@ void initGame()
 	setUpImageAnimation(&buttonPressedAnimation, &buttonPressedFrames[0], 1);
 
 	// Setting up the barrels's animations
-	barrelBackFrames[0].duration = 9999;
+	barrelBackFrames[0].duration = 1;
 	C2D_Sprite *sprite = &barrelBackFrames[0].spr;
 	C2D_SpriteFromSheet(sprite, menuSpritesSpriteSheet, menu_sprites_Barrel_Inside_idx);
 	C2D_SpriteSetCenter(sprite, 0.5f, 1.0f);
@@ -317,19 +370,36 @@ void initGame()
 		}
 		setUpSpriteAnimation(&itemsAnimations[i], &itemsSprites[i][0], 20, true);
 	}
+
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	//==================//
+	// TERRAIN ELEMENTS //
+	//==================//
+
+	// Base terrain
+	/*terrain =
+	{
+
+	};*/
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	//===============//
+	// GAMEPLAY INIT //
+	//===============//
 
 	// This will set the terrain and the player configuration
 	setGameFromSize(SMALL);
 }
 
-void setGameFromSize(int newSize)
+void setGameFromSize(enum GAME_SIZE newSize)
 {
 	buttonPressed = false;
 	currentPhase = 0;
 	gameSize = newSize;
 	if(gameSize > BIG) gameSize = SMALL; // The size selection is cyclic
-	if(gameSize < SMALL) gameSize = BIG;
+	else if(gameSize < SMALL) gameSize = BIG;
 	int sideSize = GRID_SQUARE_SIDE_SMALL;
 	for (int i = BIG; i > gameSize; i--) sideSize *= 2;
 	numRows = SCREENS_HEIGHT / sideSize;
@@ -344,32 +414,6 @@ void setGameFromSize(int newSize)
 void decrementGameSize() { setGameFromSize(gameSize - 1); }
 void incrementGameSize() { setGameFromSize(gameSize + 1); }
 
-void setOrientation(enum ORIENTATION orientation) { player.orientation = orientation; }
-
-void incrementFliesCount()
-{
-	if (++fliesCount > 3)
-	{ 
-		fliesCount = 0;
-		livesCount++;
-	}
-}
-
-void incrementLivesCount()
-{
-	if (livesCount < 3) { livesCount++; }
-}
-
-void decrementLivesCount()
-{
-	if (livesCount > -1) { livesCount--; }
-}
-
-void nextPhase()
-{
-	if (++currentPhase > 9) { currentPhase = 0; }
-}
-
 void resetPlayerProperties()
 {
 	chingonMode = false;
@@ -383,17 +427,18 @@ void resetPlayerProperties()
 	for (int i = 0; i < frogIdleAnimations[gameSize].totalFrames; i++)
 	{
 		C2D_SpriteSetPos(&frogIdleAnimations[gameSize].frames[i].spr, colPos * jumpSize + tileOffset, rowPos * jumpSize + tileOffset);
-		C2D_SpriteSetRotationDegrees(&frogIdleAnimations[gameSize].frames[i].spr, 90);
+		setOrientation(RIGHT);
 	}
+	for (int i = 0; i < wereableHatAnimations[gameSize].totalFrames; i++)
+		C2D_SpriteSetPos(&wereableHatFrames[gameSize][i].spr, colPos * jumpSize + tileOffset, rowPos * jumpSize + tileOffset);
 	player.anim = &frogIdleAnimations[gameSize];
 	resetSpriteAnimation(player.anim);
 	resetSpriteAnimation(&barrelContentAnimation);
 	player.state = IDLE;
 	player.x = 0;
 	player.y = numRows / 2;
-	player.orientation = RIGHT;
+	setOrientation(RIGHT);
 }
-
 
 void setTerrain()
 {
@@ -415,34 +460,71 @@ void setTerrain()
 	}
 }
 
-///////////////////////
-// DRAWING FUNCTIONS //
-///////////////////////
+////////////////////////
+// GAMPLAY PROCESSING //
+////////////////////////
 
-void drawGrid() // Using rectangles to draw lines might not be the most efficient way to do
-{				// but since it's GPU work I guess it's better than going pixel by pixel
-	u32 gridClr = RED; 
-	for (int i = 0; i < numRows; i++)
-	{
-		C2D_DrawRectSolid(0, SCREENS_HEIGHT - i * jumpSize, 0, TOP_SCREEN_WIDTH, 1, gridClr);
-	}
-	for (int i = 0; i < numColumns; i++)
-	{
-		C2D_DrawRectSolid(TOP_SCREEN_WIDTH - i * jumpSize, 0, 0, 1, SCREENS_HEIGHT, gridClr);
-	}
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void drawItem()
+void setOrientation(enum ORIENTATION orientation)
 {
-	if (currentItem == NONE) return;
-	renderSpriteAnimation(&itemsAnimations[currentItem], 1);
+	if (orientation == IRRELEVANT) return;
+	player.orientation = orientation;
+	float degrees = 0;
+	switch (orientation)
+	{
+		case RIGHT: degrees = 90; break;
+		case DOWN: degrees = 180; break;
+		case LEFT: degrees = 270; break;
+		default: case UP: break;
+	}
+	for (int i = 0; i < player.anim->totalFrames; i++)
+		C2D_SpriteSetRotationDegrees(&player.anim->frames[i].spr, degrees);
 }
 
-//////////////////////
-// INPUT PROCESSING //
-//////////////////////
+void jump(enum ORIENTATION orientation)
+{
+	player.state = JUMPING;
+	int deltaX = (orientation == RIGHT) * jumpSize - (orientation == LEFT) * jumpSize;
+	int deltaY = (orientation == DOWN) * jumpSize - (orientation == UP) * jumpSize; // The y axis are upside down
+
+	Coords oldCoords = getCoordsFromSpriteAnimation(player.anim);
+	int totalFrames = frogJumpingAnimations[gameSize].totalFrames;
+	for (int i = 0; i < totalFrames; i++)
+	{
+		C2D_SpriteSetPos(&frogJumpingAnimations[gameSize].frames[i].spr,
+			oldCoords.x + deltaX * q15ToFloat(sin1(floatToQ15(1.0f / 4 * i / totalFrames))),
+			oldCoords.y + deltaY * q15ToFloat(sin1(floatToQ15(1.0f / 4 * i / totalFrames))));
+	}
+	player.anim = &frogJumpingAnimations[gameSize];
+}
+
+void idle()
+{
+	player.state = IDLE;
+	Coords oldCoords = getCoordsFromSpriteAnimation(player.anim);
+	int totalFrames = frogIdleAnimations[gameSize].totalFrames;
+	for (int i = 0; i < totalFrames; i++)
+	{
+		C2D_SpriteSetPos(&frogIdleAnimations[gameSize].frames[i].spr, oldCoords.x, oldCoords.y);
+	}
+	player.anim = &frogIdleAnimations[gameSize];
+}
+
+void move(enum ORIENTATION orientation)
+{
+	bool movement = true;
+	if (player.state == DYING || player.state == SPAWNING) return;
+	if (orientation == IRRELEVANT)
+		movement = false;
+	else
+	{
+		if (orientation != player.orientation) movement = false;
+		else jump(orientation);
+	}
+	if (!movement) idle();
+	resetSpriteAnimation(player.anim);
+	setOrientation(orientation);
+
+}
 
 void processDebugControls(u32 kDown)
 {
@@ -456,25 +538,24 @@ void processDebugControls(u32 kDown)
 	if (kDown & KEY_ZR)
 		nextPhase();
 	if (kDown & KEY_X) currentItem = HAT_CHINGON;
+	if (kDown & KEY_Y && !consoleMode) showConsole();
 }
 
-void processGameplayControls(u32 kDown, u32 kHeld, touchPosition touch)
+void processGameplay(u32 kDown, u32 kHeld, touchPosition touch)
 {
-	if (kDown & KEY_LEFT)
+	bool animationEnd = hasEndedSpriteAnimation(player.anim);
+
+	if (animationEnd)
 	{
-		setOrientation(LEFT);
-	}
-	if (kDown & KEY_RIGHT)
-	{
-		setOrientation(RIGHT);
-	}
-	if (kDown & KEY_DOWN)
-	{
-		setOrientation(DOWN);
-	}
-	if (kDown & KEY_UP)
-	{
-		setOrientation(UP);
+		if (kDown & KEY_LEFT)
+			move(LEFT);
+		else if (kDown & KEY_RIGHT)
+			move(RIGHT);
+		else if (kDown & KEY_DOWN)
+			move(DOWN);
+		else if (kDown & KEY_UP)
+			move(UP);
+		else move(IRRELEVANT);
 	}
 	
 	// You can use the item pressing the button on the bottom screen or hitting B
@@ -487,6 +568,7 @@ void processGameplayControls(u32 kDown, u32 kHeld, touchPosition touch)
 		buttonPressed = false;
 		useItem();
 	}
+	
 }
 
 void useItem()
@@ -495,10 +577,59 @@ void useItem()
 	{
 		case HAT_CHINGON:
 			chingonMode = true;
-			currentItem = NONE;
 			break;
 		default: break;
 	}
+	currentItem = NONE;
+}
+
+void incrementFliesCount()
+{
+	if (++fliesCount > 3)
+	{ 
+		fliesCount = 0;
+		incrementLivesCount();
+	}
+}
+
+void incrementLivesCount()
+{
+	if (livesCount < 3) { livesCount++; }
+}
+
+void decrementLivesCount()
+{
+	if (livesCount > -1) { livesCount--; }
+}
+
+void nextPhase()
+{
+	if (++currentPhase > 9) { currentPhase = 0; }
+}
+
+///////////////////////
+// DRAWING FUNCTIONS //
+///////////////////////
+
+void drawGrid() // Using rectangles to draw lines might not be the most efficient way to do
+{				// but since it's GPU work I guess it's better than going pixel by pixel
+	u32 gridClr = RED; 
+	for (int i = 0; i < numRows; i++)
+	{
+		C2D_DrawRectSolid(0, SCREENS_HEIGHT - i * jumpSize, 1.0f, TOP_SCREEN_WIDTH, 1, gridClr);
+	}
+	for (int i = 0; i < numColumns; i++)
+	{
+		C2D_DrawRectSolid(TOP_SCREEN_WIDTH - i * jumpSize, 1.0f, 0, 1, SCREENS_HEIGHT, gridClr);
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void drawItem()
+{
+	if (currentItem == NONE) return;
+	renderSpriteAnimation(&itemsAnimations[currentItem], 1);
 }
 
 void showBottomScreen(C3D_RenderTarget* bot)
@@ -550,13 +681,29 @@ void showTopScreen(C3D_RenderTarget* top)
 			renderImageAnimation(&terrainAnimations[i][j], 1);
 		}
 	}
-	
+
+	// The player
+	renderSpriteAnimation(player.anim, 1);
+	if (chingonMode) 
+	{
+		// The hat moves with the frog
+		Coords newCoords = getCoordsFromSpriteAnimation(player.anim);
+		for (int i = 0; i < wereableHatAnimations[gameSize].totalFrames; i++)
+		{	// The trembling effect is not intended, but it's cool
+			C2D_SpriteSetPos(&wereableHatFrames[gameSize][i].spr, newCoords.x, newCoords.y);
+		}
+		renderSpriteAnimation(&wereableHatAnimations[gameSize], 1);
+	}
+
 	// The (debug) grid
 	if (gridEnabled) drawGrid();
 
-	renderSpriteAnimation(&frogIdleAnimations[gameSize], 1);
+}
 
-	
+void showConsole()
+{
+	consoleInit(GFX_BOTTOM, NULL);
+	consoleMode = true;
 }
 
 ///////////////////
@@ -584,28 +731,34 @@ int main(int argc, char* argv[])
 	terrainSpriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/terrain.t3x");
 	if (!frogSpriteSheet || !itemsSpriteSheet || !menuImagesSpriteSheet || !menuSpritesSpriteSheet
 		|| !obstaclesSpriteSheet || !particlesSpriteSheet || !terrainSpriteSheet) svcBreak(USERBREAK_PANIC);
-	initGame();
 	
-	if (BOTTOM_SCREEN_CONSOLE)
-	{
-		consoleInit(GFX_BOTTOM, NULL);
-		printf("Debug console initiallized\n");
-	   	printf("Sin1 of 0 %f\n", q15ToFloat(sin1(0)));
-		printf("Sin1 of 45 %f\n", q15ToFloat(sin1(FULL_TURN / 8)));
-		printf("Sin1 of 90 %f\n", q15ToFloat(sin1(FULL_TURN / 4))); 
-		printf("Cos1 of 0 %f\n", q15ToFloat(cos1(0)));
-		printf("Cos1 of 45 %f\n", q15ToFloat(cos1(floatToQ15(0.25f))));
-		printf("Cos1 of 90 %f\n", q15ToFloat(cos1(floatToQ15(0.5f))));
+	initGame();
 
-		printf("\nFloatToQ of 0 %d\n", floatToQ15(0));
-		printf("FloatToQ of 0.25f %d\n", floatToQ15(0.25f));
-		printf("FloatToQ of 0.5f %d\n", floatToQ15(0.5f));
-		printf("FloatToQ of 0.9999f %d\n", floatToQ15(0.9999f));
-	}
-
+	consoleMode = false;
 	// Main loop
 	while (aptMainLoop())
-	{		
+	{	
+		if (consoleMode)
+		{
+			consoleClear();
+			// Debug area
+			printf("Game Size: %.10s\n", gameSizeNames[gameSize]);
+			printf("State: %.10s\n", stateNames[player.state]);
+			printf("Orientation: %.10s\n", orientationNames[player.orientation]);
+			printf("Current Frame(%d/%d)\nFrame Process(%d/%d)\n",
+				player.anim->currentAnimationFrame + 1, player.anim->totalFrames,
+				player.anim->frames[player.anim->currentAnimationFrame].currentFrame + 1,
+				player.anim->frames[player.anim->currentAnimationFrame].duration);
+			Coords oldCoords = getCoordsFromSpriteAnimation(player.anim);
+			printf("Coords(%d, %d)\n", oldCoords.x, oldCoords.y);
+			printf("\n========================================\nLives: %d\n", livesCount);
+			printf("Flies: %d\n", fliesCount);
+			printf("Current Item: %.10s\n", itemNames[currentItem]);
+			printf("Chingon Mode: %d\n", chingonMode);
+			printf("Capacity: %.2f\n", 
+				(barrelContentAnimation.totalFrames - barrelContentAnimation.currentAnimationFrame)
+				/ (float)barrelContentAnimation.totalFrames);
+		}
 		// Checking the input
 		hidScanInput();
 		u32 kDown = hidKeysDown(); 	// Read thebuttons pressed this cycle
@@ -615,7 +768,7 @@ int main(int argc, char* argv[])
 		// Debug Controls
 		if (DEBBUG_CONTROLS) processDebugControls(kDown);
 		// Gameplay controls
-		processGameplayControls(kDown, kHeld, touch);
+		processGameplay(kDown, kHeld, touch);
 		
 		gfxSwapBuffers(); // We need this to display things
 		// Render the scene
@@ -626,7 +779,7 @@ int main(int argc, char* argv[])
 		C2D_Flush();
 		//C3D_FrameBegin(C3D_FRAME_SYNCDRAW);	
 			// The bottom screen has the all UI related sprites and drawings
-			if (!BOTTOM_SCREEN_CONSOLE) showBottomScreen(bot);
+			if (!consoleMode) showBottomScreen(bot);
 		C3D_FrameEnd(0);
 		C2D_Flush();
 		gfxSwapBuffers(); // We need this to display things

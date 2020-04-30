@@ -51,6 +51,8 @@ void stopSpriteAnimation(SpriteAnimation *anim);
 
 bool renderSpriteAnimation(SpriteAnimation *anim, int frameSteps);
 
+bool hasEndedSpriteAnimation(SpriteAnimation *anim);
+
 Coords getCoordsFromSpriteAnimation(SpriteAnimation *anim);
 
 void setUpImageAnimation(ImageAnimation *anim, ImageAnimationFrame *frames, int totalFrames);

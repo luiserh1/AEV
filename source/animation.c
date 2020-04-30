@@ -54,6 +54,14 @@ bool renderSpriteAnimation(SpriteAnimation *anim, int frameSteps)
 	return false;
 }
 
+bool hasEndedSpriteAnimation(SpriteAnimation *anim)
+{
+	int *caf = &anim->currentAnimationFrame;
+	int *cff = &anim->frames[*caf].currentFrame;
+	if (*caf+1 >= anim->totalFrames && *cff+1 >= anim->frames[*caf].duration) return true;
+	else return false;
+}
+
 Coords getCoordsFromSpriteAnimation(SpriteAnimation *anim)
 {
 	C2D_Sprite *currentSprite = &anim->frames[anim->currentAnimationFrame].spr;
