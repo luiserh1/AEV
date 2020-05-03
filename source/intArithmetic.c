@@ -1,5 +1,5 @@
 /*From https://en.wikipedia.org/wiki/Q_(number_format)*/
-#include "intArithmetic.h"
+#include <intArithmetic.h>
 
 // precomputed value:
 #define K   (1 << (Q - 1))

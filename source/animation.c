@@ -1,67 +1,43 @@
-#include "animation.h"
+#include <animation.h>
 
+int standardFrameDurations[1024];
+
+void initFramesDurations()
+{
+	// An animation using the standarFramDuration array as timer can contain 1024 frames
+	// a fulla nimation of this kind would last, at a speed of 64 frames per second, 64 seconds
+	//memset(standardFrameDurations, (int) 4, 1024*sizeof(standardFrameDurations[0]));
+	for (int i = 0; i < 1024; i++) standardFrameDurations[i] = 5;
+} 
 
 void setUpSpriteAnimation(SpriteAnimation *anim, SpriteAnimationFrame *animFrames, int totalAnimFrames, bool setLooping)
 {
-	anim->totalFrames = totalAnimFrames;
-	anim->loop = setLooping;
+	anim->animComp.totalFrames = totalAnimFrames;
+	anim->animComp.loop = setLooping;
 	anim->frames = animFrames;
-	resetSpriteAnimation(anim);
+	resetAnimation(&anim->animComp);
 }
 
-void resetSpriteAnimation(SpriteAnimation *anim)
+bool renderSpriteAnimation(SpriteAnimation *anim)
 {
-	anim->currentAnimationFrame = 0;
-	anim->endFrame = false;
-	for (int i = 0; i < anim->totalFrames; i++)
-		anim->frames[i].currentFrame = 0;
-	playSpriteAnimation(anim);
-}
-
-void pauseSpriteAnimation(SpriteAnimation *anim) { anim->paused = true; }
-
-void playSpriteAnimation(SpriteAnimation *anim)
-{ 
-	anim->paused = false;
-	anim->stopped = false;
-}
-
-void stopSpriteAnimation(SpriteAnimation *anim) { anim->stopped = true; }
-
-bool renderSpriteAnimation(SpriteAnimation *anim, int frameSteps)
-{
-	if (anim->stopped) return false;				// If it's stopped it does not show anything
-	int *caf = &anim->currentAnimationFrame;		
-	int *cff = &anim->frames[*caf].currentFrame;
-	if (*caf >= anim->totalFrames)					// If it ended last frame and it's a loop, restarts
-		resetSpriteAnimation(anim);					// If it's not a loop it will display the last frame each time
-	C2D_Sprite *sprite = &anim->frames[*caf].spr;	// as it was paused there
+	if (anim->animComp.stopped) return false;
+	int *frame = &anim->animComp.currentFrame;
+	C2D_Sprite *sprite = &anim->frames[*frame].spr;
 	C2D_DrawSprite(sprite);
-	if (anim->paused) return false;
-	*cff += frameSteps;
-	while (*cff >= anim->frames[*caf].duration)
-	{
-		*cff -= anim->frames[*caf].duration;
-		(*caf)++;
-		if (*caf >= anim->totalFrames)
-		{
-			if (!anim->loop) 
-			{
-				anim->paused = true;
-				(*caf)--;
-			}
-			anim->endFrame = true;
-			break;
-		}
-	}
-	return anim->endFrame;
+	return true;
 }
 
-bool hasEndedSpriteAnimation(SpriteAnimation *anim) { return anim->endFrame; }
+bool playSpriteAnimation(SpriteAnimation *anim, int frameSteps)
+{
+	if (anim->animComp.stopped) return false;
+	if (!anim->animComp.paused) changeCurrentAnimationStep(&anim->animComp, frameSteps);
+	renderSpriteAnimation(anim);
+	return true;
+}
 
-Coords getCoordsFromSpriteAnimation(SpriteAnimation *anim)
-{																		// The "-1" means the counter goes one
-	C2D_Sprite *currentSprite = &anim->frames[anim->currentAnimationFrame - 1].spr;	// frame ahead
+Coords getSpriteAnimationCoords(SpriteAnimation *anim)
+{
+	C2D_Sprite *currentSprite = &anim->frames[anim->animComp.currentFrame].spr;
 	Coords res;
 	res.x = currentSprite->params.pos.x;
 	res.y = currentSprite->params.pos.y;
@@ -70,48 +46,130 @@ Coords getCoordsFromSpriteAnimation(SpriteAnimation *anim)
 
 void setUpImageAnimation(ImageAnimation *anim, ImageAnimationFrame *animFrames, int totalAnimFrames)
 {
-	anim->totalFrames = totalAnimFrames;
+	anim->animComp.totalFrames = totalAnimFrames;
+	anim->animComp.loop = true;
 	anim->frames = animFrames;
-	resetImageAnimation(anim);
+	resetAnimation(&anim->animComp);
 }
 
-void resetImageAnimation(ImageAnimation *anim)
+bool renderImageAnimation(ImageAnimation *anim)
 {
-	anim->currentAnimationFrame = 0;
-	for (int i = 0; i < anim->totalFrames; i++)
-		anim->frames[i].currentFrame = 0;
-	playImageAnimation(anim);
-}
-
-void pauseImageAnimation(ImageAnimation *anim) { anim->paused = true; }
-
-void playImageAnimation(ImageAnimation *anim)
-{ 
-	anim->paused = false;
-	anim->stopped = false;
-}
-
-bool renderImageAnimation(ImageAnimation *anim, int frameSteps)
-{
-	if (anim->stopped) return false;
-	int *caf = &anim->currentAnimationFrame;
-	if (*caf >= anim->totalFrames)					
-		resetImageAnimation(anim);
-	ImageAnimationFrame *imgFrame = &anim->frames[*caf];
-	int *cff = &imgFrame->currentFrame;	
+	if (anim->animComp.stopped) return false;
+	int *frame = &anim->animComp.currentFrame;
+	ImageAnimationFrame *imgFrame = &anim->frames[*frame];
 	C2D_DrawImageAt(imgFrame->img, imgFrame->coords.x, imgFrame->coords.y, imgFrame->depth, imgFrame->tint, 1.0f, 1.0f);
-	if (anim->paused) return false;
-	*cff += frameSteps;
-	while (*cff >= anim->frames[*caf].duration)
+	return true;
+}
+
+bool playImageAnimation(ImageAnimation *anim, int frameSteps)
+{
+	if (anim->animComp.stopped) return false;
+	if (!anim->animComp.paused) changeCurrentAnimationStep(&anim->animComp, frameSteps);
+	renderImageAnimation(anim);
+	return true;
+}
+
+void setUpMovingObjectAnimation(MovingObjectAnimation *anim, SpriteAnimationFrame *frames, int totalFrames, bool setLooping)
+{
+	setUpSpriteAnimation(&anim->spriteAnim, frames, totalFrames, setLooping);
+	anim->coords = getSpriteAnimationCoords(&anim->spriteAnim);
+}
+
+bool renderMovingObjectAnimation(MovingObjectAnimation *anim)
+{
+	return renderSpriteAnimation(&anim->spriteAnim);
+}
+
+bool playMovingObjectAnimation(MovingObjectAnimation *anim, int frameSteps)
+{
+	bool res = playSpriteAnimation(&anim->spriteAnim, frameSteps);
+	anim->coords = getSpriteAnimationCoords(&anim->spriteAnim);
+	return res;
+}
+
+void resetMovingObjectAnimation(MovingObjectAnimation *anim)
+{
+	resetAnimation(&anim->spriteAnim.animComp);
+	anim->coords = getSpriteAnimationCoords(&anim->spriteAnim);
+}
+
+void resetAnimation(AnimationComponent *animComp)
+{
+	animComp->currentFrame = 0;
+	animComp->currentStep = 0;
+	animComp->animEnd = false;
+	animComp->animStart = true;
+	resumeAnimation(animComp);
+}
+
+void pauseAnimation(AnimationComponent *animComp) { animComp->paused = true; }
+
+void resumeAnimation(AnimationComponent *animComp)
+{ 
+	animComp->paused = false;
+	animComp->stopped = false;
+}
+
+void stopAnimation(AnimationComponent *animComp) {animComp->stopped = true; }
+
+bool changeCurrentAnimationStep(AnimationComponent *animComp, int steps)
+{
+	if (animComp->stopped) return false;		// It's not possible to interact with stopped animations
+	int *frame = &animComp->currentFrame;		
+	int *step = &animComp->currentStep;
+	*step += steps;
+	if (steps != 0)	
 	{
-		*cff -= anim->frames[*caf].duration;
-		(*caf)++;
-		if (*caf >= anim->totalFrames)
+		animComp->animEnd = false;
+		animComp->animStart = false;
+	}													
+	if (steps > 0)
+	{		
+		while (*step >= animComp->framesDurations[*frame])
 		{
-			return true;
+			*step -= animComp->framesDurations[*frame];
+			(*frame)++;
+			if (*frame >= animComp->totalFrames)
+			{
+				animComp->animEnd = true;
+				if (!animComp->loop) 
+				{
+					animComp->paused = true;
+					*frame = animComp->totalFrames-1;
+					*step = animComp->framesDurations[*frame]-1;
+				}
+				else
+				{
+					*frame = 0;
+					*step = 0;
+				}
+				break;
+			}
 		}
 	}
-	return false;
+	else // if (steps <= 0)
+	{
+		while (*step <= 0)
+		{
+			(*frame)--;
+			*step += animComp->framesDurations[*frame];
+			if (*frame < 0)
+			{
+				animComp->animStart = true;
+				if (!animComp->loop) 
+				{
+					animComp->paused = true;
+					*frame = 0;
+					*step = 0;
+				}
+				else
+				{
+					*frame = animComp->totalFrames-1;
+					*step = animComp->framesDurations[*frame]-1;
+				}
+				break;
+			}
+		}
+	}
+	return true;		
 }
-
-void stopImageAnimation(ImageAnimation *anim) { anim->stopped = true; }

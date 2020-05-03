@@ -1,6 +1,14 @@
-animation.o: \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/animation.c \
- /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/include/animation.h \
+sprites.o: \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/source/sprites.c \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/include/sprites.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_sprites.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/frog.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/items.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/pickable_items.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_images.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/obstacles.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/particles.h \
+ /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/terrain.h \
  /opt/devkitpro/libctru/include/citro2d.h \
  /opt/devkitpro/libctru/include/citro3d.h \
  /opt/devkitpro/libctru/include/c3d/types.h \
@@ -107,7 +115,23 @@ animation.o: \
  /opt/devkitpro/libctru/include/c2d/font.h \
  /home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/include/geometry.h
 
-/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/include/animation.h:
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/include/sprites.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_sprites.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/frog.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/items.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/pickable_items.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/menu_images.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/obstacles.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/particles.h:
+
+/home/luis/Documentos/Universidad/aev/Proyecto_RanaWey/RanaWeyGame/build/terrain.h:
 
 /opt/devkitpro/libctru/include/citro2d.h:
 
